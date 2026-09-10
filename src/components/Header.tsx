@@ -1,13 +1,8 @@
-import { Heart, ImageIcon, Music, ShieldCheck, Sparkles, Zap } from "lucide-react";
-import { cn } from "../utils/cn";
+import { Heart, ShieldCheck, Zap } from "lucide-react";
 
 export default function Header({
-  activeMode,
-  onModeChange,
   onOpenSupport,
 }: {
-  activeMode: "all" | "audio" | "image";
-  onModeChange: (mode: "all" | "audio" | "image") => void;
   onOpenSupport?: () => void;
 }) {
   return (
@@ -150,51 +145,6 @@ export default function Header({
               One File In · Every Format Out · 100% In-Browser
             </p>
           </div>
-        </div>
-
-        {/* Mode Switcher Tabs */}
-        <div className="flex rounded-xl border border-white/10 bg-white/5 p-1">
-          <button
-            type="button"
-            onClick={() => onModeChange("all")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
-              activeMode === "all"
-                ? "bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-md"
-                : "text-slate-400 hover:text-white",
-            )}
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>All Formats</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onModeChange("image")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
-              activeMode === "image"
-                ? "bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-md"
-                : "text-slate-400 hover:text-white",
-            )}
-          >
-            <ImageIcon className="h-3.5 w-3.5" />
-            <span>Image Studio</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onModeChange("audio")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
-              activeMode === "audio"
-                ? "bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-md"
-                : "text-slate-400 hover:text-white",
-            )}
-          >
-            <Music className="h-3.5 w-3.5" />
-            <span>Audio Studio</span>
-          </button>
         </div>
       </div>
     </header>

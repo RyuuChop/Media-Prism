@@ -117,7 +117,6 @@ function FeatureCard({
 /* ---------- App component ---------- */
 
 export default function App() {
-  const [activeMode, setActiveMode] = useState<"all" | "audio" | "image">("all");
   const [assets, setAssets] = useState<Asset[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -221,15 +220,6 @@ export default function App() {
         };
       });
 
-      // Auto-adapt mode if appropriate
-      const hasImage = created.some((a) => a.kind === "image");
-      const hasAudio = created.some((a) => a.kind === "audio");
-      if (hasImage && !hasAudio && activeMode === "audio") {
-        setActiveMode("image");
-      } else if (hasAudio && !hasImage && activeMode === "image") {
-        setActiveMode("audio");
-      }
-
       setAssets((prev) => [...prev, ...created]);
       setSelectedId((prev) => prev ?? created[0].id);
       setResult((r) => {
@@ -243,7 +233,7 @@ export default function App() {
         "Ready to convert — configure your parameters and hit Convert.",
       );
     },
-    [activeMode, addToast, updateAsset],
+    [addToast, updateAsset],
   );
 
   const removeAsset = useCallback(
@@ -459,11 +449,7 @@ export default function App() {
       <Background />
 
       <div className="relative z-10 mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
-        <Header
-          activeMode={activeMode}
-          onModeChange={setActiveMode}
-          onOpenSupport={() => setSupportModalOpen(true)}
-        />
+        <Header onOpenSupport={() => setSupportModalOpen(true)} />
 
         <main>
           {/* Hero Banner */}
