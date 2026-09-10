@@ -284,29 +284,62 @@ export default function App() {
     });
   }, []);
 
-  const toggleCheck = useCallback((id: string) => {
-    setCheckedIds((prev) =>
-      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
-    );
-  }, []);
+  const toggleCheck = useCallback(
+    (id: string) => {
+      const target = assets.find((a) => a.id === id);
+      if (!target) return;
+      setCheckedIds((prev) => {
+        if (prev.includes(id)) return prev.filter((c) => c !== id);
+        // A batch can only hold one media kind — if this check would mix
+        // kinds, start a fresh batch with just this file (defensive; the
+        // UI disables the other kind's checkboxes).
+        const prevKind = prev.length
+          ? assets.find((a) => a.id === prev[0])?.kind
+          : undefined;
+        if (prevKind && prevKind !== target.kind) return [id];
+        return [...prev, id];
+      });
+    },
+    [assets],
+  );
 
   const toggleCheckAll = useCallback(() => {
-    setCheckedIds((prev) =>
-      prev.length === assets.length ? [] : assets.map((a) => a.id),
-    );
-  }, [assets]);
+    setCheckedIds((prev) => {
+      const checkedKind = prev.length
+        ? (assets.find((a) => a.id === prev[0])?.kind ?? null)
+        : null;
+      // "Select all" applies to the active batch kind: the checked kind,
+      // else the focused asset's kind, else the first asset's kind.
+      const batchKind =
+        checkedKind ??
+        (assets.find((a) => a.id === selectedId)?.kind ??
+          assets[0]?.kind ??
+          null);
+      if (!batchKind) return prev;
+
+      const selectable = assets.filter((a) => a.kind === batchKind);
+      const allChecked =
+        prev.length === selectable.length &&
+        selectable.every((a) => prev.includes(a.id));
+      return allChecked ? [] : selectable.map((a) => a.id);
+    });
+  }, [assets, selectedId]);
 
   const handleConvert = useCallback(async () => {
     if (busy) return;
 
     // Batch = explicitly checked assets, falling back to the focused asset.
-    const batch =
+    let batch =
       checkedIds.length > 0
         ? assets.filter((a) => checkedIds.includes(a.id))
         : selected
           ? [selected]
           : [];
     if (batch.length === 0) return;
+
+    // Safety: a batch must be a single media kind (image XOR audio).
+    const batchKind = batch[0].kind;
+    batch = batch.filter((a) => a.kind === batchKind);
 
     const total = batch.length;
 

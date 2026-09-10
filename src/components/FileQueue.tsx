@@ -38,8 +38,20 @@ export default function FileQueue({
     audio: assets.filter((a) => a.kind === "audio").length,
   };
 
-  const allChecked = assets.length > 0 && checkedIds.length === assets.length;
+  // A batch can only contain one media kind — figure out which one is active.
+  const checkedKind = checkedIds.length
+    ? (assets.find((a) => a.id === checkedIds[0])?.kind ?? null)
+    : null;
+  const batchKind =
+    checkedKind ??
+    (assets.find((a) => a.id === selectedId)?.kind ?? assets[0]?.kind ?? null);
+  const selectable = batchKind
+    ? assets.filter((a) => a.kind === batchKind)
+    : assets;
+  const allChecked =
+    selectable.length > 0 && checkedIds.length === selectable.length;
   const someChecked = checkedIds.length > 0;
+  const mixedLibrary = counts.image > 0 && counts.audio > 0;
 
   return (
     <section className="glass p-4 sm:p-5">
@@ -112,7 +124,9 @@ export default function FileQueue({
               )}
             >
               <CheckCheck className="h-3.5 w-3.5" />
-              {allChecked ? "Deselect all" : "Select all"}
+              {allChecked
+                ? "Deselect all"
+                : `Select all${batchKind ? (batchKind === "image" ? " images" : " audio") : ""}`}
             </button>
           )}
 
@@ -134,6 +148,7 @@ export default function FileQueue({
           const active = a.id === selectedId;
           const checked = checkedIds.includes(a.id);
           const converting = a.status === "converting";
+          const kindLocked = checkedKind !== null && a.kind !== checkedKind;
           return (
             <div
               key={a.id}
@@ -182,24 +197,34 @@ export default function FileQueue({
                     : formatDuration(a.duration)}
                 </span>
 
-                {/* Batch selection checkbox */}
+                {/* Batch selection checkbox — a batch can hold only one media kind */}
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (!busy) onToggleCheck(a.id);
+                    if (!busy && !kindLocked) onToggleCheck(a.id);
                   }}
                   onKeyDown={(e) => e.stopPropagation()}
-                  disabled={busy}
+                  disabled={busy || kindLocked}
                   aria-pressed={checked}
                   aria-label={checked ? `Unselect ${a.name}` : `Select ${a.name} for batch conversion`}
-                  title={checked ? "Remove from batch" : "Add to batch"}
+                  title={
+                    kindLocked
+                      ? checkedKind === "image"
+                        ? "Batch is images-only — uncheck the images to convert audio instead"
+                        : "Batch is audio-only — uncheck the audio to convert images instead"
+                      : checked
+                        ? "Remove from batch"
+                        : "Add to batch"
+                  }
                   className={cn(
                     "absolute bottom-1.5 left-1.5 flex h-6 w-6 items-center justify-center rounded-md border backdrop-blur-sm transition-all",
                     checked
                       ? "border-indigo-300 bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white shadow-md shadow-indigo-950/60"
                       : "border-white/30 bg-black/60 text-transparent hover:border-indigo-300 hover:bg-indigo-500/40",
                     busy && "cursor-not-allowed opacity-60",
+                    kindLocked &&
+                      "cursor-not-allowed border-white/15 text-transparent opacity-35 hover:border-white/15 hover:bg-black/60",
                   )}
                 >
                   <Check className="h-3.5 w-3.5" strokeWidth={3.5} />
@@ -239,8 +264,11 @@ export default function FileQueue({
 
       {someChecked && (
         <p className="mt-3 text-center text-[10px] text-slate-500">
-          {checkedIds.length} file{checkedIds.length > 1 ? "s" : ""} queued — they will all convert with the
-          settings above when you hit Convert.
+          {checkedIds.length} {checkedKind === "image" ? "image" : "audio"}
+          {checkedIds.length > 1 ? "s" : ""} queued — all will convert to the same format
+          {mixedLibrary
+            ? `. A batch can only hold one media type — uncheck these to switch to ${checkedKind === "image" ? "audio" : "images"}.`
+            : " when you hit Convert."}
         </p>
       )}
     </section>

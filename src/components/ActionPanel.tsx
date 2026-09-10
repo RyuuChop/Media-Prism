@@ -56,8 +56,6 @@ export default function ActionPanel({
 }) {
   const batchCount = batchFiles.length;
   const batchImages = batchFiles.filter((a) => a.kind === "image").length;
-  const batchAudio = batchCount - batchImages;
-  const allImages = batchCount > 0 && batchAudio === 0;
   const allAudio = batchCount > 0 && batchImages === 0;
   const activeFormat = allAudio ? audioSettings.format : imageSettings.format;
   const fmt = getFormatDef(activeFormat);
@@ -67,7 +65,7 @@ export default function ActionPanel({
 
   const convertLabel =
     batchCount > 1
-      ? `Convert ${batchCount} Files${allImages || allAudio ? ` to ${fmt.label.toUpperCase()}` : ""}`
+      ? `Convert ${batchCount} Files to ${fmt.label.toUpperCase()}`
       : `Convert to ${fmt.label.toUpperCase()}`;
 
   return (
@@ -78,7 +76,7 @@ export default function ActionPanel({
           <Stat label="Total Size" value={formatBytes(batchFiles.reduce((s, a) => s + a.size, 0))} />
           <Stat
             label="Target"
-            value={allImages || allAudio ? fmt.label : "Per Type"}
+            value={fmt.label}
           />
         </div>
       )}
@@ -120,7 +118,7 @@ export default function ActionPanel({
 
           <p className="mt-3 text-center text-[10px] leading-relaxed text-slate-400">
             {batchCount > 1
-              ? "Each selected file converts with the settings for its type — images and audio can be mixed in one batch."
+              ? `All ${batchCount} selected files convert to ${fmt.label.toUpperCase()} with the ${allAudio ? "audio" : "image"} settings above.`
               : allAudio || asset?.kind === "audio"
                 ? "Pure client-side Web Audio & stream processing. Instant encoding with zero network lag."
                 : "Pure client-side canvas and binary encoders. High-fidelity lossless & custom sizing."}
