@@ -174,6 +174,9 @@ export default function PreviewPanel({
                     className={cn(
                       "h-full w-full transition-all",
                       zoomFit === "contain" ? "object-contain" : "object-cover",
+                      // ICO frames are tiny — show crisp pixels instead of
+                      // an upscaled blur when previewed larger than 100%.
+                      result?.mime === "image/x-icon" && "pixelated-preview",
                     )}
                   />
                 ) : (

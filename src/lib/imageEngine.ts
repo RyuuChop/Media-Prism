@@ -247,6 +247,11 @@ export async function convertImage(
         ? settings.icoSizes
         : [16, 32, 48, 64, 128, 256];
 
+    const padWithBackground =
+      settings.transparencyMode === "fill" && Boolean(settings.backgroundColor);
+    const safeSrcW = Math.max(1, srcWidth);
+    const safeSrcH = Math.max(1, srcHeight);
+
     const frames: IcoFrame[] = [];
     let largestPreviewDataUrl = "";
     const largestSize = Math.max(...requestedSizes);
@@ -258,8 +263,26 @@ export async function convertImage(
       const ctx = iconCanvas.getContext("2d")!;
       ctx.clearRect(0, 0, size, size);
 
-      const resampled = progressiveResample(imgElement, size, size);
-      ctx.drawImage(resampled, 0, 0);
+      // Aspect-preserving contain fit: scale the image to fit inside the
+      // square frame and center it, instead of squashing it into a square.
+      // Padding is transparent by default, or the chosen background fill.
+      const scale = Math.min(size / safeSrcW, size / safeSrcH);
+      const fitW = Math.max(1, Math.round(safeSrcW * scale));
+      const fitH = Math.max(1, Math.round(safeSrcH * scale));
+
+      if (padWithBackground) {
+        ctx.fillStyle = settings.backgroundColor || "#ffffff";
+        ctx.fillRect(0, 0, size, size);
+      }
+
+      const resampled = progressiveResample(imgElement, fitW, fitH);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(
+        resampled,
+        Math.floor((size - fitW) / 2),
+        Math.floor((size - fitH) / 2),
+      );
 
       const pngData = await canvasToPngBytes(iconCanvas);
       frames.push({ width: size, height: size, pngData });

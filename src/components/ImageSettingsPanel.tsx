@@ -274,6 +274,14 @@ export default function ImageSettingsPanel({
                 );
               })}
             </div>
+            {(settings.icoSizes?.length ?? 6) === 1 && (
+              <p className="mt-3 rounded-lg border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
+                Only one frame selected — the .ico will contain just a{" "}
+                {settings.icoSizes?.[0]}×{settings.icoSizes?.[0]} image. That is a
+                tiny icon (shown crisp but zoomed in the preview), so keep more
+                sizes checked for icons that must look sharp everywhere.
+              </p>
+            )}
           </div>
         )}
 

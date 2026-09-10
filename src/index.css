@@ -127,6 +127,10 @@ body {
       linear-gradient(90deg, rgba(148, 163, 184, 0.055) 1px, transparent 1px);
     background-size: 44px 44px;
   }
+  /* Show upscaled icon frames as honest crisp pixels instead of a blurry smear */
+  .pixelated-preview {
+    image-rendering: pixelated;
+  }
 }
 
 input[type="range"] {
