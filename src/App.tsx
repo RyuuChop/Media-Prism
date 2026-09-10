@@ -672,6 +672,10 @@ export default function App() {
                   asset={selected}
                   result={results.find((r) => r.assetId === selected?.id) ?? null}
                   busy={busy}
+                  imageSettings={imageSettings}
+                  onImageChange={updateImageSettings}
+                  audioSettings={audioSettings}
+                  onAudioChange={updateAudioSettings}
                 />
                 <FileQueue
                   assets={assets}

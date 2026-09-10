@@ -25,7 +25,6 @@ import {
   PRESET_BG_COLORS,
 } from "../lib/imageEngine";
 import { IMAGE_PRESETS } from "../lib/presets";
-import ImageCropPanel from "./ImageCropPanel";
 
 function SectionHeader({
   icon: Icon,
@@ -201,14 +200,6 @@ export default function ImageSettingsPanel({
             })}
           </div>
         </div>
-
-        {/* Transform & Crop Editor */}
-        <ImageCropPanel
-          asset={asset}
-          settings={settings}
-          onChange={onChange}
-          disabled={disabled}
-        />
 
         {/* Quality Slider (JPG, JPEG & WEBP) */}
         {(settings.format === "jpg" || settings.format === "jpeg" || settings.format === "webp") && (

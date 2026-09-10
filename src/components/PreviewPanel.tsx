@@ -1,16 +1,27 @@
 import { useEffect, useState } from "react";
 import {
+  Crop,
   FileQuestion,
+  FlipHorizontal,
+  FlipVertical,
   Grid,
   Layers,
   Loader2,
   Maximize,
   Minimize,
+  RotateCcw,
+  RotateCw,
+  Scissors,
+  Volume2,
+  Waves,
 } from "lucide-react";
-import type { Asset, ConvertResult } from "../types";
+import type { Asset, AudioConvertSettings, ConvertResult } from "../types";
 import { cn } from "../utils/cn";
 import { formatBytes, formatDuration } from "../lib/format";
+import { applyTransforms, type ImageConvertSettings } from "../lib/imageEngine";
 import AudioVisualizer from "./AudioVisualizer";
+import CropOverlay from "./CropOverlay";
+import AudioTools, { type AudioToolId } from "./AudioTools";
 
 type View = "source" | "output";
 
@@ -52,23 +63,75 @@ function Meta({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ToolButton({
+  active,
+  disabled,
+  onClick,
+  title,
+  children,
+  dot,
+}: {
+  active?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  title: string;
+  children: React.ReactNode;
+  dot?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      aria-label={title}
+      className={cn(
+        "relative flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-40",
+        active
+          ? "border-indigo-400/50 bg-indigo-500/20 text-indigo-200"
+          : "border-white/10 bg-white/5 text-slate-400 hover:text-white",
+      )}
+    >
+      {children}
+      {dot && (
+        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-fuchsia-400 shadow" />
+      )}
+    </button>
+  );
+}
+
 export default function PreviewPanel({
   asset,
   result,
   busy,
+  imageSettings,
+  onImageChange,
+  audioSettings,
+  onAudioChange,
 }: {
   asset: Asset | null;
   result: ConvertResult | null;
   busy: boolean;
+  imageSettings: ImageConvertSettings;
+  onImageChange: (patch: Partial<ImageConvertSettings>) => void;
+  audioSettings: AudioConvertSettings;
+  onAudioChange: (patch: Partial<AudioConvertSettings>) => void;
 }) {
   const [view, setView] = useState<View>("source");
   const [checkerboard, setCheckerboard] = useState(true);
   const [zoomFit, setZoomFit] = useState<"contain" | "cover">("contain");
+  const [cropMode, setCropMode] = useState(false);
+  const [audioTool, setAudioTool] = useState<AudioToolId | null>(null);
+  const [transformedUrl, setTransformedUrl] = useState<string | null>(null);
 
   const hasResult = !!result && result.assetId === asset?.id;
   const isImage = asset?.kind === "image";
   const showOutput = view === "output" && hasResult;
   const resultIsImage = result?.mime.startsWith("image/");
+
+  const imageTransformed =
+    isImage &&
+    (imageSettings.rotate !== 0 || imageSettings.flipH || imageSettings.flipV);
 
   useEffect(() => {
     if (hasResult) setView("output");
@@ -76,12 +139,68 @@ export default function PreviewPanel({
 
   useEffect(() => {
     setView("source");
+    setCropMode(false);
+    setAudioTool(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asset?.id]);
 
+  // Build a source preview that reflects rotate/flip transforms instantly
+  useEffect(() => {
+    if (!asset || asset.kind !== "image" || !imageTransformed) {
+      setTransformedUrl(null);
+      return;
+    }
+    let cancelled = false;
+    const img = new Image();
+    img.onload = () => {
+      if (cancelled) return;
+      const t = applyTransforms(img, imageSettings);
+      setTransformedUrl(
+        t instanceof HTMLCanvasElement ? t.toDataURL("image/png") : img.src,
+      );
+    };
+    img.src = asset.url;
+    return () => {
+      cancelled = true;
+      img.onload = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    asset?.id,
+    imageTransformed,
+    imageSettings.rotate,
+    imageSettings.flipH,
+    imageSettings.flipV,
+  ]);
+
+  /* ---------------- transform actions (image) ---------------- */
+
+  const rotateBy = (dir: 1 | -1) => {
+    const next = (((imageSettings.rotate + dir * 90) % 360) + 360) % 360;
+    onImageChange({
+      rotate: next as ImageConvertSettings["rotate"],
+      crop: null, // crop coordinates live in the rotated space — reset
+    });
+  };
+
+  const flip = (axis: "h" | "v") => {
+    if (axis === "h") onImageChange({ flipH: !imageSettings.flipH, crop: null });
+    else onImageChange({ flipV: !imageSettings.flipV, crop: null });
+  };
+
+  const hasCrop = isImage && Boolean(imageSettings.crop);
+  const audioDirty =
+    !isImage &&
+    (audioSettings.trimStart > 0 ||
+      audioSettings.trimEnd > 0 ||
+      audioSettings.fadeIn > 0 ||
+      audioSettings.fadeOut > 0 ||
+      audioSettings.normalize ||
+      audioSettings.gainDb !== 0);
+
   return (
     <section className="glass overflow-hidden">
-      <div className="flex items-center justify-between border-b border-white/10 px-5 py-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-white/10 px-5 py-3.5">
         <div className="flex items-center gap-2">
           <Layers className="h-4 w-4 text-indigo-400" />
           <h3 className="text-sm font-semibold text-white">Live Preview</h3>
@@ -93,29 +212,114 @@ export default function PreviewPanel({
           )}
         </div>
 
-        <div className="flex items-center gap-2">
-          {isImage && (
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
+        <div className="flex flex-wrap items-center gap-1.5">
+          {/* ---- Image tools: rotate / flip / crop ---- */}
+          {isImage && !showOutput && (
+            <div className="flex items-center gap-1.5">
+              <ToolButton
+                onClick={() => rotateBy(-1)}
+                disabled={busy}
+                title="Rotate 90° left"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+              </ToolButton>
+              <ToolButton
+                onClick={() => rotateBy(1)}
+                disabled={busy}
+                title="Rotate 90° right"
+              >
+                <RotateCw className="h-3.5 w-3.5" />
+              </ToolButton>
+              <ToolButton
+                onClick={() => flip("h")}
+                disabled={busy}
+                title="Flip horizontal"
+                active={imageSettings.flipH}
+              >
+                <FlipHorizontal className="h-3.5 w-3.5" />
+              </ToolButton>
+              <ToolButton
+                onClick={() => flip("v")}
+                disabled={busy}
+                title="Flip vertical"
+                active={imageSettings.flipV}
+              >
+                <FlipVertical className="h-3.5 w-3.5" />
+              </ToolButton>
+              <ToolButton
+                onClick={() => setCropMode((c) => !c)}
+                disabled={busy}
+                title="Crop"
+                active={cropMode}
+                dot={hasCrop && !cropMode}
+              >
+                <Crop className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Crop</span>
+              </ToolButton>
+            </div>
+          )}
+
+          {/* ---- Audio tools: trim / fades / loudness ---- */}
+          {!isImage && asset && (
+            <div className="flex items-center gap-1.5">
+              <ToolButton
+                onClick={() => setAudioTool((t) => (t === "trim" ? null : "trim"))}
+                disabled={busy}
+                title="Trim audio"
+                active={audioTool === "trim"}
+                dot={
+                  (audioSettings.trimStart > 0 || audioSettings.trimEnd > 0) &&
+                  audioTool !== "trim"
+                }
+              >
+                <Scissors className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Trim</span>
+              </ToolButton>
+              <ToolButton
+                onClick={() => setAudioTool((t) => (t === "fades" ? null : "fades"))}
+                disabled={busy}
+                title="Fade in / out"
+                active={audioTool === "fades"}
+                dot={
+                  (audioSettings.fadeIn > 0 || audioSettings.fadeOut > 0) &&
+                  audioTool !== "fades"
+                }
+              >
+                <Waves className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Fades</span>
+              </ToolButton>
+              <ToolButton
+                onClick={() =>
+                  setAudioTool((t) => (t === "loudness" ? null : "loudness"))
+                }
+                disabled={busy}
+                title="Normalize & gain"
+                active={audioTool === "loudness"}
+                dot={
+                  (audioSettings.normalize || audioSettings.gainDb !== 0) &&
+                  audioTool !== "loudness"
+                }
+              >
+                <Volume2 className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Loudness</span>
+              </ToolButton>
+            </div>
+          )}
+
+          {isImage && !cropMode && (
+            <div className="flex items-center gap-1.5">
+              <ToolButton
                 onClick={() => setCheckerboard((c) => !c)}
                 title={checkerboard ? "Transparency grid enabled" : "Dark backdrop enabled"}
-                className={cn(
-                  "flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors",
-                  checkerboard
-                    ? "border-indigo-400/40 bg-indigo-500/15 text-indigo-300"
-                    : "border-white/10 bg-white/5 text-slate-400 hover:text-white",
-                )}
+                active={checkerboard}
               >
                 <Grid className="h-3 w-3" />
                 <span className="hidden sm:inline">Grid</span>
-              </button>
+              </ToolButton>
 
-              <button
-                type="button"
+              <ToolButton
                 onClick={() => setZoomFit((z) => (z === "contain" ? "cover" : "contain"))}
                 title={zoomFit === "contain" ? "Fit to frame" : "Fill frame"}
-                className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-medium text-slate-400 transition-colors hover:text-white"
               >
                 {zoomFit === "contain" ? (
                   <Maximize className="h-3 w-3" />
@@ -125,7 +329,7 @@ export default function PreviewPanel({
                 <span className="hidden sm:inline">
                   {zoomFit === "contain" ? "Fit" : "Fill"}
                 </span>
-              </button>
+              </ToolButton>
             </div>
           )}
 
@@ -155,6 +359,15 @@ export default function PreviewPanel({
               Upload an image or audio file above to see its live preview here.
             </p>
           </div>
+        ) : cropMode && isImage ? (
+          /* ---------------- CROP EDITOR (dims only the preview) ---------------- */
+          <CropOverlay
+            asset={asset}
+            settings={imageSettings}
+            onChange={onImageChange}
+            onDone={() => setCropMode(false)}
+            disabled={busy}
+          />
         ) : (
           <>
             <div
@@ -188,8 +401,8 @@ export default function PreviewPanel({
                 )
               ) : isImage ? (
                 <img
-                  key={asset.id}
-                  src={asset.previewUrl || asset.url}
+                  key={asset.id + (transformedUrl ? "-t" : "")}
+                  src={transformedUrl || asset.previewUrl || asset.url}
                   alt={asset.name}
                   className={cn(
                     "h-full w-full transition-all",
@@ -225,7 +438,27 @@ export default function PreviewPanel({
               >
                 {showOutput ? "Converted Output" : asset.ext.toUpperCase()}
               </span>
+
+              {/* Active edit badge */}
+              {!showOutput && (imageTransformed || hasCrop || audioDirty) && (
+                <span className="absolute right-3 top-3 flex items-center gap-1 rounded-md border border-fuchsia-400/30 bg-fuchsia-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-fuchsia-200 backdrop-blur-md">
+                  Edited
+                </span>
+              )}
             </div>
+
+            {/* Audio tool panel (trim / fades / loudness) */}
+            {!isImage && audioTool && (
+              <div className="mt-4">
+                <AudioTools
+                  tool={audioTool}
+                  asset={asset}
+                  settings={audioSettings}
+                  onChange={onAudioChange}
+                  disabled={busy}
+                />
+              </div>
+            )}
 
             {/* Metadata metrics strip */}
             <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">

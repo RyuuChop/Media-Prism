@@ -5,10 +5,7 @@ import {
   Music,
   Radio,
   RefreshCw,
-  Scissors,
   Sliders,
-  Volume2,
-  Waves,
   Zap,
 } from "lucide-react";
 import type { Asset, AudioConvertSettings } from "../types";
@@ -59,28 +56,6 @@ export default function AudioSettingsPanel({
   disabled: boolean;
 }) {
   const est = asset ? estimateAudioBytes(asset, settings) : null;
-  const duration = asset?.duration ?? 0;
-  const hasDuration = duration > 0.2;
-  const effStart = hasDuration ? Math.min(settings.trimStart, duration) : 0;
-  const effEnd = hasDuration
-    ? (settings.trimEnd > 0 ? Math.min(settings.trimEnd, duration) : duration)
-    : 0;
-  const effDuration = Math.max(0, effEnd - effStart);
-  const fadeMax = Math.max(0.5, effDuration / 2);
-
-  const setTrimStart = (v: number) => {
-    if (!hasDuration) return;
-    const maxStart = Math.max(0, (settings.trimEnd > 0 ? settings.trimEnd : duration) - 0.5);
-    onChange({ trimStart: Math.max(0, Math.min(v, maxStart)) });
-  };
-
-  const setTrimEnd = (v: number) => {
-    if (!hasDuration) return;
-    // 0 or >= duration means "until the end"
-    const end = v >= duration - 0.05 ? 0 : Math.max(settings.trimStart + 0.5, v);
-    onChange({ trimEnd: Math.min(end, duration) });
-  };
-
   return (
     <section className="glass p-5">
       <div className="mb-5 flex items-center justify-between">
@@ -249,175 +224,6 @@ export default function AudioSettingsPanel({
               Mono (1 Ch)
             </button>
           </div>
-        </div>
-
-        {/* Trim (Start / End) */}
-        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-200">
-              <Scissors className="h-4 w-4 text-indigo-400" />
-              <span>Trim Audio</span>
-            </div>
-            {(settings.trimStart > 0 || settings.trimEnd > 0) && (
-              <button
-                type="button"
-                onClick={() => onChange({ trimStart: 0, trimEnd: 0 })}
-                disabled={disabled}
-                className="rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-slate-400 transition-colors hover:text-white disabled:opacity-40"
-              >
-                Reset trim
-              </button>
-            )}
-          </div>
-
-          {hasDuration ? (
-            <>
-              <div className="space-y-3">
-                <div>
-                  <div className="mb-1 flex items-center justify-between text-[11px]">
-                    <span className="font-medium text-slate-400">Start</span>
-                    <span className="font-mono font-bold text-indigo-300">
-                      {formatDuration(effStart)}
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={Math.floor(duration * 10) / 10}
-                    step={0.1}
-                    value={effStart}
-                    onChange={(e) => setTrimStart(Number(e.target.value))}
-                    disabled={disabled}
-                    className="w-full"
-                  />
-                </div>
-                <div>
-                  <div className="mb-1 flex items-center justify-between text-[11px]">
-                    <span className="font-medium text-slate-400">End</span>
-                    <span className="font-mono font-bold text-indigo-300">
-                      {settings.trimEnd > 0 ? formatDuration(settings.trimEnd) : "Full"}
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={Math.floor(duration * 10) / 10}
-                    step={0.1}
-                    value={settings.trimEnd > 0 ? settings.trimEnd : duration}
-                    onChange={(e) => setTrimEnd(Number(e.target.value))}
-                    disabled={disabled}
-                    className="w-full"
-                  />
-                </div>
-              </div>
-              <p className="mt-2.5 text-[10px] text-slate-500">
-                Keeps{" "}
-                <span className="font-mono font-semibold text-slate-300">
-                  {formatDuration(effDuration)}
-                </span>{" "}
-                of {formatDuration(duration)} — drag End all the way right for "until the end".
-              </p>
-            </>
-          ) : (
-            <p className="text-[10px] text-slate-500">
-              Duration is still being analyzed — trim unlocks in a moment.
-            </p>
-          )}
-        </div>
-
-        {/* Fades */}
-        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-          <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-slate-200">
-            <Waves className="h-4 w-4 text-indigo-400" />
-            <span>Fades</span>
-          </div>
-          <div className="space-y-3">
-            <div>
-              <div className="mb-1 flex items-center justify-between text-[11px]">
-                <span className="font-medium text-slate-400">Fade in</span>
-                <span className="font-mono font-bold text-indigo-300">
-                  {settings.fadeIn > 0 ? `${settings.fadeIn.toFixed(1)}s` : "Off"}
-                </span>
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={Math.min(10, fadeMax)}
-                step={0.1}
-                value={Math.min(settings.fadeIn, Math.min(10, fadeMax))}
-                onChange={(e) => onChange({ fadeIn: Number(e.target.value) })}
-                disabled={disabled || !hasDuration}
-                className="w-full"
-              />
-            </div>
-            <div>
-              <div className="mb-1 flex items-center justify-between text-[11px]">
-                <span className="font-medium text-slate-400">Fade out</span>
-                <span className="font-mono font-bold text-indigo-300">
-                  {settings.fadeOut > 0 ? `${settings.fadeOut.toFixed(1)}s` : "Off"}
-                </span>
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={Math.min(10, fadeMax)}
-                step={0.1}
-                value={Math.min(settings.fadeOut, Math.min(10, fadeMax))}
-                onChange={(e) => onChange({ fadeOut: Number(e.target.value) })}
-                disabled={disabled || !hasDuration}
-                className="w-full"
-              />
-            </div>
-          </div>
-          <p className="mt-2.5 text-[10px] text-slate-500">
-            Smooth cosine ramps — click-free ringtone & clip edges.
-          </p>
-        </div>
-
-        {/* Loudness: Normalize & Gain */}
-        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-200">
-              <Volume2 className="h-4 w-4 text-indigo-400" />
-              <span>Loudness</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => onChange({ normalize: !settings.normalize })}
-              disabled={disabled}
-              className={cn(
-                "rounded-full border px-2.5 py-0.5 text-[10px] font-bold transition-colors disabled:opacity-40",
-                settings.normalize
-                  ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-300"
-                  : "border-white/10 bg-white/5 text-slate-400 hover:text-white",
-              )}
-            >
-              {settings.normalize ? "NORMALIZE ON" : "NORMALIZE OFF"}
-            </button>
-          </div>
-
-          <div className="mb-1 flex items-center justify-between text-[11px]">
-            <span className="font-medium text-slate-400">Manual gain</span>
-            <span className="font-mono font-bold text-indigo-300">
-              {settings.gainDb > 0 ? "+" : ""}
-              {settings.gainDb.toFixed(1)} dB
-            </span>
-          </div>
-          <input
-            type="range"
-            min={-12}
-            max={12}
-            step={0.5}
-            value={settings.gainDb}
-            onChange={(e) => onChange({ gainDb: Number(e.target.value) })}
-            disabled={disabled}
-            className="w-full"
-          />
-          <p className="mt-2.5 text-[10px] leading-relaxed text-slate-500">
-            {settings.normalize
-              ? "Peak normalization lifts quiet audio to a healthy level before gain."
-              : "Normalize boosts quiet tracks to ~98% peak; gain fine-tunes up or down."}
-          </p>
         </div>
 
         {/* Estimated File Size Strip */}
