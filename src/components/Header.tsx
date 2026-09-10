@@ -94,20 +94,60 @@ export default function Header({
           <div className="relative">
             <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 opacity-60 blur-lg" />
             <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 shadow-lg shadow-indigo-950/60 ring-1 ring-white/20">
-              <Sparkles className="h-5.5 w-5.5 text-white" />
+              <svg
+                className="h-6 w-6"
+                viewBox="0 0 24 24"
+                fill="none"
+                aria-hidden="true"
+              >
+                {/* Prism */}
+                <path
+                  d="M12 4.5 L19.5 18.5 H4.5 Z"
+                  stroke="white"
+                  strokeWidth="1.7"
+                  strokeLinejoin="round"
+                  fill="rgba(255,255,255,0.12)"
+                />
+                {/* Incoming beam */}
+                <path
+                  d="M1.5 12.5 H7"
+                  stroke="white"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                />
+                {/* Refracted beams */}
+                <path
+                  d="M15.5 12.5 L22.5 9"
+                  stroke="#c7d2fe"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M15.5 12.5 L22.5 12.75"
+                  stroke="white"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M15.5 12.5 L22.5 16.5"
+                  stroke="#f5d0fe"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                />
+              </svg>
             </div>
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg font-extrabold tracking-tight text-white">
-                Media<span className="text-gradient">Forge</span>
+                Media<span className="text-gradient">Prism</span>
               </h1>
               <span className="rounded-full border border-indigo-400/30 bg-indigo-500/15 px-2 py-0.5 text-[10px] font-bold tracking-widest text-indigo-300">
                 STUDIO
               </span>
             </div>
             <p className="text-xs font-medium text-slate-400">
-              High-Speed Image Studio & Audio Converter
+              One File In · Every Format Out · 100% In-Browser
             </p>
           </div>
         </div>

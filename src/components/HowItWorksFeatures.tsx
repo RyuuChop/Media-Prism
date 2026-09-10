@@ -103,7 +103,7 @@ export default function HowItWorksFeatures() {
           <span className="text-gradient">purely in your browser</span>
         </h2>
         <p className="mt-3 text-sm sm:text-base text-slate-400 leading-relaxed">
-          MediaForge combines HTML5 Canvas, Web Audio API, and specialized binary encoders to provide
+          MediaPrism combines HTML5 Canvas, Web Audio API, and specialized binary encoders to provide
           creators, designers, and audio producers with a private, zero-compromise workstation.
         </p>
       </div>

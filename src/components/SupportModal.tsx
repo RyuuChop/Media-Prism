@@ -100,7 +100,7 @@ export default function SupportModal({
           </div>
 
           <h3 className="mt-3 text-xl sm:text-2xl font-extrabold tracking-tight text-white">
-            Thank you for using <span className="text-gradient">MediaForge!</span>
+            Thank you for using <span className="text-gradient">MediaPrism!</span>
           </h3>
 
           <p className="mt-2 text-sm text-slate-300 leading-relaxed max-w-md">

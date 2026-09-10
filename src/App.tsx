@@ -146,9 +146,9 @@ export default function App() {
   // Check and trigger first-time support popup helper
   const triggerFirstTimeSupportPopup = useCallback(() => {
     try {
-      const alreadyShown = localStorage.getItem("mediaforge_support_modal_shown");
+      const alreadyShown = localStorage.getItem("mediaprism_support_modal_shown");
       if (!alreadyShown) {
-        localStorage.setItem("mediaforge_support_modal_shown", "true");
+        localStorage.setItem("mediaprism_support_modal_shown", "true");
         setSupportModalOpen(true);
       }
     } catch {
@@ -649,7 +649,7 @@ export default function App() {
           </div>
 
           <div>
-            MediaForge · 100% In-Browser HTML5 Canvas & Web Audio API Processing · Zero Server Uploads
+            MediaPrism · 100% In-Browser HTML5 Canvas & Web Audio API Processing · Zero Server Uploads
           </div>
         </footer>
       </div>
