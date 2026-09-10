@@ -119,6 +119,8 @@ function FeatureCard({
 export default function App() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Batch selection — which assets the Convert button will process
+  const [checkedIds, setCheckedIds] = useState<string[]>([]);
 
   // Conversion Settings for Audio & Image
   const [audioSettings, setAudioSettings] = useState<AudioConvertSettings>(DEFAULT_AUDIO_SETTINGS);
@@ -129,7 +131,8 @@ export default function App() {
   const [progress, setProgress] = useState(0);
   const [phaseLabel, setPhaseLabel] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<ConvertResult | null>(null);
+  const [results, setResults] = useState<ConvertResult[]>([]);
+  const [zipping, setZipping] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   // First-Time Support Modal state
@@ -222,10 +225,7 @@ export default function App() {
 
       setAssets((prev) => [...prev, ...created]);
       setSelectedId((prev) => prev ?? created[0].id);
-      setResult((r) => {
-        if (r) URL.revokeObjectURL(r.url);
-        return null;
-      });
+      clearResults();
       created.forEach((a) => void probeAsset(a, updateAsset));
       addToast(
         "success",
@@ -247,12 +247,13 @@ export default function App() {
         if (prevId !== id) return prevId;
         return assets.find((a) => a.id !== id)?.id ?? null;
       });
-      setResult((r) => {
-        if (r?.assetId === id) {
-          URL.revokeObjectURL(r.url);
-          return null;
-        }
-        return r;
+      setCheckedIds((prev) => prev.filter((c) => c !== id));
+      setResults((prev) => {
+        const kept = prev.filter((r) => r.assetId !== id);
+        prev
+          .filter((r) => r.assetId === id)
+          .forEach((r) => URL.revokeObjectURL(r.url));
+        return kept;
       });
     },
     [assets],
@@ -262,10 +263,8 @@ export default function App() {
     assets.forEach((a) => URL.revokeObjectURL(a.url));
     setAssets([]);
     setSelectedId(null);
-    setResult((r) => {
-      if (r) URL.revokeObjectURL(r.url);
-      return null;
-    });
+    setCheckedIds([]);
+    clearResults();
   }, [assets]);
 
   const updateAudioSettings = useCallback((patch: Partial<AudioConvertSettings>) => {
@@ -278,33 +277,93 @@ export default function App() {
     setPhase((p) => (p === "done" ? "idle" : p));
   }, []);
 
-  const handleConvert = useCallback(async () => {
-    if (!selected || busy) return;
+  const clearResults = useCallback(() => {
+    setResults((prev) => {
+      prev.forEach((r) => URL.revokeObjectURL(r.url));
+      return [];
+    });
+  }, []);
 
-    // 1. Image Mode Conversion (100% in-browser Canvas & binary encoders)
-    if (selected.kind === "image") {
-      setPhase("converting");
-      setProgress(30);
-      setError(null);
-      setPhaseLabel("Rendering canvas & encoding…");
+  const toggleCheck = useCallback((id: string) => {
+    setCheckedIds((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
+    );
+  }, []);
+
+  const toggleCheckAll = useCallback(() => {
+    setCheckedIds((prev) =>
+      prev.length === assets.length ? [] : assets.map((a) => a.id),
+    );
+  }, [assets]);
+
+  const handleConvert = useCallback(async () => {
+    if (busy) return;
+
+    // Batch = explicitly checked assets, falling back to the focused asset.
+    const batch =
+      checkedIds.length > 0
+        ? assets.filter((a) => checkedIds.includes(a.id))
+        : selected
+          ? [selected]
+          : [];
+    if (batch.length === 0) return;
+
+    const total = batch.length;
+
+    // Revoke previous run's object URLs before starting fresh.
+    clearResults();
+    setError(null);
+    setPhase("converting");
+    setProgress(0);
+
+    const usedNames = new Set<string>();
+    const collected: ConvertResult[] = [];
+    const failures: { name: string; message: string }[] = [];
+
+    const markStatus = (id: string, status: Asset["status"]) => {
+      setAssets((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, status } : a)),
+      );
+    };
+
+    for (let i = 0; i < total; i++) {
+      const asset = batch[i];
+      const fileLabel =
+        total > 1 ? `File ${i + 1}/${total} · ${asset.name}` : asset.name;
+
+      markStatus(asset.id, "converting");
 
       try {
-        await new Promise((r) => setTimeout(r, 40)); // Yield for smooth UI animation
-        setProgress(70);
-        setPhaseLabel(`Encoding to ${imageSettings.format.toUpperCase()}…`);
+        let output: ConvertResult;
 
-        const { blob, mime, ext, width, height, previewUrl } = await convertImage(
-          selected.file || selected.url,
-          imageSettings,
-          selected.name,
-          selected.ext,
-        );
+        if (asset.kind === "image") {
+          setPhaseLabel(`${fileLabel} — encoding…`);
+          await new Promise((r) => setTimeout(r, 30)); // Yield for smooth UI
+          setProgress(Math.round(((i + 0.35) / total) * 100));
+          setPhaseLabel(
+            `${fileLabel} — encoding to ${imageSettings.format.toUpperCase()}…`,
+          );
 
-        const name = getOutputName(selected.name, ext);
-        setResult((prev) => {
-          if (prev) URL.revokeObjectURL(prev.url);
-          return {
-            assetId: selected.id,
+          const { blob, mime, ext, width, height, previewUrl } =
+            await convertImage(
+              asset.file || asset.url,
+              imageSettings,
+              asset.name,
+              asset.ext,
+            );
+
+          let name = getOutputName(asset.name, ext);
+          while (usedNames.has(name)) {
+            const dot = name.lastIndexOf(".");
+            name =
+              dot === -1
+                ? `${name} (copy)`
+                : `${name.slice(0, dot)} (${usedNames.size + 1})${name.slice(dot)}`;
+          }
+          usedNames.add(name);
+
+          output = {
+            assetId: asset.id,
             url: URL.createObjectURL(blob),
             previewUrl,
             name,
@@ -313,97 +372,154 @@ export default function App() {
             width,
             height,
           };
-        });
+        } else {
+          setPhaseLabel(`${fileLabel} — decoding audio…`);
+          await new Promise((r) => setTimeout(r, 30));
 
-        setProgress(100);
-        setPhase("done");
-        setPhaseLabel("");
-        addToast(
-          "success",
-          "Image Conversion Complete",
-          `${name} (${width}×${height}px) is ready to download.`,
-        );
+          const { blob, mime, ext, duration } = await convertAudio(
+            asset.file || asset.url,
+            audioSettings,
+            (pct) => setProgress(Math.round(((i + pct / 100) / total) * 100)),
+            (label) =>
+              setPhaseLabel(
+                `${fileLabel} — ${label ?? "processing…"}`,
+              ),
+          );
 
-        // Trigger First-Time Support Modal on first completed conversion
-        triggerFirstTimeSupportPopup();
+          let name = getOutputName(asset.name, ext);
+          while (usedNames.has(name)) {
+            const dot = name.lastIndexOf(".");
+            name =
+              dot === -1
+                ? `${name} (copy)`
+                : `${name.slice(0, dot)} (${usedNames.size + 1})${name.slice(dot)}`;
+          }
+          usedNames.add(name);
+
+          output = {
+            assetId: asset.id,
+            url: URL.createObjectURL(blob),
+            name,
+            size: blob.size,
+            mime,
+            duration,
+          };
+        }
+
+        collected.push(output);
+        markStatus(asset.id, "done");
+        setResults((prev) => [...prev, output]);
+        setProgress(Math.round(((i + 1) / total) * 100));
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        setPhase("error");
-        setError(msg || "Failed to process image.");
-        addToast("error", "Image conversion failed", msg);
+        failures.push({ name: asset.name, message: msg });
+        markStatus(asset.id, "error");
       }
-      return;
     }
 
-    // 2. Audio Mode Conversion (100% in-browser Web Audio API & MediaStream)
-    setPhase("converting");
-    setProgress(20);
-    setError(null);
-    setPhaseLabel("Decoding audio in browser…");
+    setPhaseLabel("");
 
-    try {
-      await new Promise((r) => setTimeout(r, 30));
-
-      const { blob, mime, ext, duration } = await convertAudio(
-        selected.file || selected.url,
-        audioSettings,
-        (pct) => setProgress(pct),
-        (label) => setPhaseLabel(label),
-      );
-
-      const name = getOutputName(selected.name, ext);
-      setResult((prev) => {
-        if (prev) URL.revokeObjectURL(prev.url);
-        return {
-          assetId: selected.id,
-          url: URL.createObjectURL(blob),
-          name,
-          size: blob.size,
-          mime,
-          duration,
-        };
-      });
-
+    if (collected.length > 0) {
       setProgress(100);
       setPhase("done");
-      setPhaseLabel("");
       addToast(
         "success",
-        "Audio Conversion Complete",
-        `${name} (${audioSettings.bitrate} kbps) is ready to download.`,
+        collected.length > 1
+          ? `${collected.length} of ${total} files converted`
+          : "Conversion Complete",
+        collected.length > 1
+          ? "Your batch is ready — download files individually or grab them all as a ZIP."
+          : `${collected[0].name} is ready to download.`,
       );
+      if (failures.length > 0) {
+        addToast(
+          "error",
+          `${failures.length} file${failures.length > 1 ? "s" : ""} failed`,
+          failures.map((f) => f.name).join(", "),
+        );
+      }
+      triggerFirstTimeSupportPopup();
+    } else {
+      setPhase("error");
+      setError(
+        failures[0]?.message || "All conversions failed. Please try again.",
+      );
+      addToast(
+        "error",
+        "Batch conversion failed",
+        failures[0]?.message ?? "No files could be converted.",
+      );
+    }
+  }, [
+    assets,
+    checkedIds,
+    selected,
+    audioSettings,
+    imageSettings,
+    busy,
+    addToast,
+    triggerFirstTimeSupportPopup,
+    clearResults,
+  ]);
 
-      // Trigger First-Time Support Modal on first completed conversion
+  const handleDownload = useCallback(
+    (result: ConvertResult) => {
+      const a = document.createElement("a");
+      a.href = result.url;
+      a.download = result.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      addToast("success", "Download started", result.name);
+
+      // Also trigger Support Modal on first download click if not shown yet
+      triggerFirstTimeSupportPopup();
+    },
+    [addToast, triggerFirstTimeSupportPopup],
+  );
+
+  const handleDownloadAll = useCallback(async () => {
+    if (results.length === 0 || zipping) return;
+    setZipping(true);
+    try {
+      const { createZipBlob } = await import("./lib/zipWriter");
+      const entries = await Promise.all(
+        results.map(async (r) => ({
+          name: r.name,
+          blob: await fetch(r.url).then((res) => res.blob()),
+        })),
+      );
+      const zip = await createZipBlob(entries);
+      const url = URL.createObjectURL(zip);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `mediaprism-batch-${results.length}-files.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Give the browser a moment to start the download before revoking
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      addToast(
+        "success",
+        "ZIP download started",
+        `${results.length} files · ${(zip.size / (1024 * 1024)).toFixed(zip.size > 1024 * 1024 ? 1 : 2)} MB`,
+      );
       triggerFirstTimeSupportPopup();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setPhase("error");
-      setError(msg || "Failed to encode audio.");
-      addToast("error", "Audio conversion failed", msg);
+      addToast("error", "Could not build ZIP", msg);
+    } finally {
+      setZipping(false);
     }
-  }, [selected, audioSettings, imageSettings, busy, addToast, triggerFirstTimeSupportPopup]);
-
-  const handleDownload = useCallback(() => {
-    if (!result) return;
-    const a = document.createElement("a");
-    a.href = result.url;
-    a.download = result.name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    addToast("success", "Download started", result.name);
-
-    // Also trigger Support Modal on first download click if not shown yet
-    triggerFirstTimeSupportPopup();
-  }, [result, addToast, triggerFirstTimeSupportPopup]);
+  }, [results, zipping, addToast, triggerFirstTimeSupportPopup]);
 
   const handleReset = useCallback(() => {
-    setResult((r) => {
-      if (r) URL.revokeObjectURL(r.url);
-      return null;
-    });
+    clearResults();
     setPhase("idle");
-  }, []);
+    setProgress(0);
+    setPhaseLabel("");
+    setError(null);
+  }, [clearResults]);
 
   const handleDemoAudio = useCallback(async () => {
     if (demoAudioLoading || demoImageLoading) return;
@@ -484,11 +600,18 @@ export default function App() {
           {hasAssets ? (
             <div className="animate-fade-up mt-8 grid grid-cols-1 gap-6 lg:grid-cols-12">
               <div className="space-y-6 lg:col-span-7">
-                <PreviewPanel asset={selected} result={result} busy={busy} />
+                <PreviewPanel
+                  asset={selected}
+                  result={results.find((r) => r.assetId === selected?.id) ?? null}
+                  busy={busy}
+                />
                 <FileQueue
                   assets={assets}
                   selectedId={selectedId}
+                  checkedIds={checkedIds}
                   onSelect={setSelectedId}
+                  onToggleCheck={toggleCheck}
+                  onToggleCheckAll={toggleCheckAll}
                   onRemove={removeAsset}
                   onClear={clearAll}
                   busy={busy}
@@ -515,15 +638,24 @@ export default function App() {
 
                 <ActionPanel
                   asset={selected}
+                  batchFiles={
+                    checkedIds.length > 0
+                      ? assets.filter((a) => checkedIds.includes(a.id))
+                      : selected
+                        ? [selected]
+                        : []
+                  }
                   audioSettings={audioSettings}
                   imageSettings={imageSettings}
                   phase={phase}
                   progress={progress}
                   phaseLabel={phaseLabel}
                   error={error}
-                  result={result}
+                  results={results}
+                  zipping={zipping}
                   onConvert={handleConvert}
                   onDownload={handleDownload}
+                  onDownloadAll={handleDownloadAll}
                   onReset={handleReset}
                 />
               </div>
