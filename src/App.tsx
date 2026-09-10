@@ -23,6 +23,7 @@ import Toasts from "./components/Toasts";
 import type {
   Asset,
   AudioConvertSettings,
+  BeforeInstallPromptEvent,
   ConvertResult,
   JobPhase,
   MediaKind,
@@ -141,9 +142,17 @@ export default function App() {
   // Demo generators state
   const [demoAudioLoading, setDemoAudioLoading] = useState(false);
   const [demoImageLoading, setDemoImageLoading] = useState(false);
+  const [installPrompt, setInstallPrompt] =
+    useState<BeforeInstallPromptEvent | null>(null);
 
   const selected = assets.find((a) => a.id === selectedId) ?? null;
   const busy = phase === "converting";
+
+  const handleInstall = useCallback(() => {
+    if (!installPrompt) return;
+    installPrompt.prompt().catch(() => {});
+    setInstallPrompt(null);
+  }, [installPrompt]);
 
   // Check and trigger first-time support popup helper
   const triggerFirstTimeSupportPopup = useCallback(() => {
@@ -174,6 +183,28 @@ export default function App() {
     setToasts((t) => [...t, { id, type, title, message }]);
     window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4600);
   }, []);
+
+  // PWA install prompt capture
+  useEffect(() => {
+    const onBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e as BeforeInstallPromptEvent);
+    };
+    const onInstalled = () => {
+      setInstallPrompt(null);
+      addToast(
+        "success",
+        "MediaPrism installed",
+        "Find it on your home screen or desktop — it works offline too.",
+      );
+    };
+    window.addEventListener("beforeinstallprompt", onBeforeInstall);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBeforeInstall);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, [addToast]);
 
   const dismissToast = useCallback((id: string) => {
     setToasts((t) => t.filter((x) => x.id !== id));
@@ -598,7 +629,11 @@ export default function App() {
       <Background />
 
       <div className="relative z-10 mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
-        <Header onOpenSupport={() => setSupportModalOpen(true)} />
+        <Header
+          onOpenSupport={() => setSupportModalOpen(true)}
+          canInstall={installPrompt !== null}
+          onInstall={handleInstall}
+        />
 
         <main>
           {/* Hero Banner */}

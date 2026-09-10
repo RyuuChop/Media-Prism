@@ -1,9 +1,13 @@
-import { Heart, ShieldCheck, Zap } from "lucide-react";
+import { Download, Heart, ShieldCheck, Zap } from "lucide-react";
 
 export default function Header({
   onOpenSupport,
+  canInstall,
+  onInstall,
 }: {
   onOpenSupport?: () => void;
+  canInstall?: boolean;
+  onInstall?: () => void;
 }) {
   return (
     <header className="py-6 border-b border-white/5 space-y-4">
@@ -80,6 +84,18 @@ export default function Header({
             <Zap className="h-3.5 w-3.5" />
             Instant Processing
           </div>
+
+          {canInstall && (
+            <button
+              type="button"
+              onClick={onInstall}
+              title="Install MediaPrism as an app — works offline"
+              className="flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-gradient-to-r from-emerald-500/15 to-cyan-500/15 px-3 py-1 text-[11px] font-semibold text-emerald-300 transition-all hover:border-emerald-400/60 hover:text-white active:scale-95"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Install App
+            </button>
+          )}
         </div>
       </div>
 

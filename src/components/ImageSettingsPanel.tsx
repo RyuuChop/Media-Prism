@@ -5,24 +5,27 @@ import {
   Gauge,
   ImageIcon,
   Layers,
-  Link,
   Maximize2,
   PaintBucket,
   Percent,
   RefreshCw,
   Sliders,
   Square,
-  Unlink,
+  Target,
+  Zap,
 } from "lucide-react";
 import type { Asset } from "../types";
 import { cn } from "../utils/cn";
 import {
   calculateDimensions,
+  DEFAULT_IMAGE_SETTINGS,
   ICO_SIZE_PRESETS,
   IMAGE_FORMAT_DEFS,
   type ImageConvertSettings,
   PRESET_BG_COLORS,
 } from "../lib/imageEngine";
+import { IMAGE_PRESETS } from "../lib/presets";
+import ImageCropPanel from "./ImageCropPanel";
 
 function SectionHeader({
   icon: Icon,
@@ -126,16 +129,9 @@ export default function ImageSettingsPanel({
           type="button"
           onClick={() =>
             onChange({
-              format: "png",
-              quality: 90,
-              resizeMode: "original",
+              ...DEFAULT_IMAGE_SETTINGS,
               targetWidth: originalWidth,
               targetHeight: originalHeight,
-              percentage: 100,
-              maintainAspectRatio: true,
-              transparencyMode: "preserve",
-              backgroundColor: "#ffffff",
-              icoSizes: [16, 32, 48, 64, 128, 256],
             })
           }
           disabled={disabled}
@@ -147,6 +143,26 @@ export default function ImageSettingsPanel({
       </div>
 
       <div className="space-y-6">
+        {/* One-Click Preset Profiles */}
+        <div>
+          <SectionHeader icon={Zap} title="Quick Presets" />
+          <div className="flex flex-wrap gap-1.5">
+            {IMAGE_PRESETS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                title={p.hint}
+                onClick={() => onChange(p.apply)}
+                disabled={disabled}
+                className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-semibold text-slate-300 transition-all hover:border-indigo-400/50 hover:bg-indigo-500/15 hover:text-white active:scale-95 disabled:opacity-40"
+              >
+                <span>{p.emoji}</span>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Output Format selection */}
         <div>
           <SectionHeader icon={ImageIcon} title="Target Image Format" />
@@ -185,6 +201,14 @@ export default function ImageSettingsPanel({
             })}
           </div>
         </div>
+
+        {/* Transform & Crop Editor */}
+        <ImageCropPanel
+          asset={asset}
+          settings={settings}
+          onChange={onChange}
+          disabled={disabled}
+        />
 
         {/* Quality Slider (JPG, JPEG & WEBP) */}
         {(settings.format === "jpg" || settings.format === "jpeg" || settings.format === "webp") && (
@@ -234,6 +258,84 @@ export default function ImageSettingsPanel({
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Target File Size (lossy formats) */}
+        {(settings.format === "jpg" || settings.format === "jpeg" || settings.format === "webp") && (
+          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-200">
+                <Target className="h-4 w-4 text-indigo-400" />
+                <span>Target File Size</span>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  onChange({ targetSizeKb: settings.targetSizeKb != null ? null : 500 })
+                }
+                disabled={disabled}
+                className={cn(
+                  "rounded-full border px-2.5 py-0.5 text-[10px] font-bold transition-colors disabled:opacity-40",
+                  settings.targetSizeKb != null
+                    ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-300"
+                    : "border-white/10 bg-white/5 text-slate-400 hover:text-white",
+                )}
+              >
+                {settings.targetSizeKb != null ? "ON" : "OFF"}
+              </button>
+            </div>
+
+            {settings.targetSizeKb != null ? (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="number"
+                    min={10}
+                    max={50000}
+                    value={settings.targetSizeKb}
+                    onChange={(e) =>
+                      onChange({
+                        targetSizeKb: Math.max(
+                          10,
+                          Math.min(50000, Math.round(Number(e.target.value) || 500)),
+                        ),
+                      })
+                    }
+                    disabled={disabled}
+                    className="w-24 rounded-xl border border-white/10 bg-black/40 px-3 py-2 font-mono text-sm text-white outline-none focus:border-indigo-400"
+                  />
+                  <span className="text-xs font-medium text-slate-400">KB maximum</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[100, 250, 500, 1000, 2000].map((kb) => (
+                      <button
+                        key={kb}
+                        type="button"
+                        onClick={() => onChange({ targetSizeKb: kb })}
+                        disabled={disabled}
+                        className={cn(
+                          "rounded-md border px-2 py-0.5 font-mono text-[10px] font-semibold transition-colors disabled:opacity-40",
+                          settings.targetSizeKb === kb
+                            ? "border-indigo-400/50 bg-indigo-500/20 text-white"
+                            : "border-white/10 bg-white/5 text-slate-400 hover:text-white",
+                        )}
+                      >
+                        {kb >= 1000 ? `${kb / 1000} MB` : `${kb} KB`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
+                  Auto-tunes quality — and downscales only if needed — so each converted file
+                  lands under the limit. Perfect for upload size caps.
+                </p>
+              </>
+            ) : (
+              <p className="text-[10px] leading-relaxed text-slate-500">
+                Optional: set a maximum file size and the converter automatically picks the best
+                quality that fits under it.
+              </p>
+            )}
           </div>
         )}
 
@@ -342,37 +444,6 @@ export default function ImageSettingsPanel({
                   />
                 </div>
 
-                <button
-                  type="button"
-                  title={
-                    settings.maintainAspectRatio
-                      ? "Aspect ratio locked (Proportional scaling)"
-                      : "Aspect ratio unlocked"
-                  }
-                  onClick={() => {
-                    const nextMaintain = !settings.maintainAspectRatio;
-                    if (nextMaintain) {
-                      const newH = Math.max(1, Math.round((settings.targetWidth || originalWidth) / aspect));
-                      onChange({ maintainAspectRatio: true, targetHeight: newH });
-                    } else {
-                      onChange({ maintainAspectRatio: false });
-                    }
-                  }}
-                  disabled={disabled}
-                  className={cn(
-                    "mt-5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-colors",
-                    settings.maintainAspectRatio
-                      ? "border-indigo-400/50 bg-indigo-500/20 text-indigo-300"
-                      : "border-white/10 bg-white/5 text-slate-500 hover:text-slate-300",
-                  )}
-                >
-                  {settings.maintainAspectRatio ? (
-                    <Link className="h-4 w-4" />
-                  ) : (
-                    <Unlink className="h-4 w-4" />
-                  )}
-                </button>
-
                 <div className="flex-1">
                   <label className="mb-1 block text-[11px] font-medium uppercase text-slate-400">
                     Height (px)
@@ -386,6 +457,52 @@ export default function ImageSettingsPanel({
                     disabled={disabled}
                     className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 font-mono text-sm text-white outline-none focus:border-indigo-400"
                   />
+                </div>
+              </div>
+
+              {/* Fit Mode — how the image fills the target box */}
+              <div>
+                <p className="mb-1.5 text-[10px] font-semibold uppercase text-slate-500">
+                  Fit Mode
+                </p>
+                <div className="flex rounded-lg border border-white/10 bg-white/5 p-1">
+                  {(
+                    [
+                      { id: "contain", label: "Fit", title: "Fit inside the box — aspect preserved, may letterbox" },
+                      { id: "cover", label: "Fill", title: "Fill the box and center-crop — aspect preserved" },
+                      { id: "stretch", label: "Stretch", title: "Stretch to the exact box — aspect ignored" },
+                    ] as const
+                  ).map((m) => {
+                    const active = settings.fitMode === m.id;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        title={m.title}
+                        onClick={() => {
+                          if (m.id === "contain") {
+                            const w = settings.targetWidth || originalWidth;
+                            onChange({
+                              fitMode: "contain",
+                              maintainAspectRatio: true,
+                              targetHeight: Math.max(1, Math.round(w / aspect)),
+                            });
+                          } else {
+                            onChange({ fitMode: m.id, maintainAspectRatio: false });
+                          }
+                        }}
+                        disabled={disabled}
+                        className={cn(
+                          "flex-1 rounded-md py-1.5 text-xs font-semibold transition-colors disabled:opacity-40",
+                          active
+                            ? "bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow"
+                            : "text-slate-400 hover:text-white",
+                        )}
+                      >
+                        {m.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

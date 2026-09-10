@@ -122,6 +122,88 @@ export async function decodeAudioToWav(
 }
 
 /**
+ * Applies user processing to a decoded AudioBuffer:
+ * trim → peak-normalize → gain → fade-in / fade-out (cosine curves).
+ * Returns the original buffer when no processing is needed.
+ */
+export function processAudioBuffer(
+  buffer: AudioBuffer,
+  settings: AudioConvertSettings,
+): AudioBuffer {
+  const sr = buffer.sampleRate;
+  const duration = buffer.duration;
+
+  // ---- Trim window (invalid windows fall back to the full buffer) ----
+  const trimStart =
+    settings.trimStart > 0 ? Math.min(settings.trimStart, Math.max(0, duration - 0.05)) : 0;
+  const trimEnd = settings.trimEnd > 0 ? Math.min(settings.trimEnd, duration) : duration;
+  let startS = Math.floor(trimStart * sr);
+  let endS = Math.ceil(trimEnd * sr);
+  if (endS - startS < 32 || startS >= buffer.length) {
+    startS = 0;
+    endS = buffer.length;
+  }
+
+  const needsTrim = startS > 0 || endS < buffer.length;
+  const needsLoudness = settings.normalize || settings.gainDb !== 0;
+  const fadeMax = (endS - startS) / sr / 2;
+  const fadeInS = Math.min(Math.max(0, settings.fadeIn || 0), fadeMax) * sr;
+  const fadeOutS = Math.min(Math.max(0, settings.fadeOut || 0), fadeMax) * sr;
+  const needsFades = fadeInS >= 1 || fadeOutS >= 1;
+
+  if (!needsTrim && !needsLoudness && !needsFades) return buffer;
+
+  // ---- Peak level of the trimmed region (for normalization) ----
+  let peak = 0;
+  if (settings.normalize) {
+    for (let c = 0; c < buffer.numberOfChannels; c++) {
+      const data = buffer.getChannelData(c).subarray(startS, endS);
+      for (let i = 0; i < data.length; i++) {
+        const abs = Math.abs(data[i]);
+        if (abs > peak) peak = abs;
+      }
+    }
+  }
+  const normalizeGain = settings.normalize && peak > 0.00001 ? Math.min(0.98 / peak, 8) : 1;
+  const manualGain = Math.pow(10, (settings.gainDb || 0) / 20);
+  const totalGain = normalizeGain * manualGain;
+  const length = endS - startS;
+
+  const out = createEmptyBuffer(buffer.numberOfChannels, length, sr);
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const srcData = buffer.getChannelData(c).subarray(startS, endS);
+    const outData = out.getChannelData(c);
+    for (let i = 0; i < length; i++) {
+      let sample = srcData[i] * totalGain;
+      // Cosine fade-in / fade-out — smooth, click-free edges
+      if (fadeInS >= 1 && i < fadeInS) {
+        sample *= 0.5 - 0.5 * Math.cos((Math.PI * i) / fadeInS);
+      }
+      if (fadeOutS >= 1 && i >= length - fadeOutS) {
+        sample *= 0.5 - 0.5 * Math.cos((Math.PI * (length - i)) / fadeOutS);
+      }
+      outData[i] = sample > 1 ? 1 : sample < -1 ? -1 : sample;
+    }
+  }
+  return out;
+}
+
+function createEmptyBuffer(channels: number, length: number, sampleRate: number): AudioBuffer {
+  try {
+    return new AudioBuffer({ numberOfChannels: channels, length, sampleRate });
+  } catch {
+    // Older browsers: allocate through a temporary AudioContext
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const ctx = new AudioCtx();
+    const buf = ctx.createBuffer(channels, length, sampleRate);
+    ctx.close().catch(() => {});
+    return buf;
+  }
+}
+
+/**
  * Converts audio into the requested audio format (MP3, WAV, AAC, OGG, M4A, FLAC)
  * with user-selected bitrates and sample rates.
  */
@@ -139,20 +221,21 @@ export async function convertAudio(
   const bitrateNum = (Number(settings.bitrate) || 192) * 1000;
 
   const audioBuffer = await decodeAudio(fileOrBlob);
-  const duration = audioBuffer.duration;
+  const processed = processAudioBuffer(audioBuffer, settings);
+  const duration = processed.duration;
 
   onPhase?.(`Encoding to ${settings.format.toUpperCase()} (${settings.bitrate} kbps, ${sampleRateNum / 1000} kHz)…`);
   onProgress?.(60);
 
   // If WAV format or lossless requested
   if (settings.format === "wav") {
-    const wavBlob = audioBufferToWavBlob(audioBuffer, sampleRateNum, channelsNum);
+    const wavBlob = audioBufferToWavBlob(processed, sampleRateNum, channelsNum);
     onProgress?.(100);
     return { blob: wavBlob, mime: "audio/wav", ext: "wav", duration };
   }
 
   // Check for compressed recording stream support (AAC, MP4, WebM Audio, OGG)
-  const wavBlob = audioBufferToWavBlob(audioBuffer, sampleRateNum, channelsNum);
+  const wavBlob = audioBufferToWavBlob(processed, sampleRateNum, channelsNum);
 
   let targetMime = "audio/mpeg";
   let ext = settings.format;

@@ -15,6 +15,13 @@ export type ImageOutputFormat =
   | "svg"
   | "tiff";
 
+export interface CropRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface ImageConvertSettings {
   format: ImageOutputFormat;
   quality: number; // 1 - 100
@@ -23,9 +30,17 @@ export interface ImageConvertSettings {
   targetHeight: number;
   percentage: number; // e.g. 50 = 50%
   maintainAspectRatio: boolean;
+  fitMode: "contain" | "cover" | "stretch"; // how the image fills the target box (pixels mode)
   transparencyMode: "preserve" | "fill";
   backgroundColor: string; // Hex color e.g. "#ffffff"
   icoSizes: number[]; // e.g. [16, 32, 48, 64, 128, 256]
+  // Transforms (applied before resize, in order: rotate → flip → crop)
+  rotate: 0 | 90 | 180 | 270;
+  flipH: boolean;
+  flipV: boolean;
+  crop: CropRect | null; // in transformed-source pixels
+  // Auto-optimize lossy output under this size (KB). null = off
+  targetSizeKb: number | null;
 }
 
 export const DEFAULT_IMAGE_SETTINGS: ImageConvertSettings = {
@@ -36,9 +51,15 @@ export const DEFAULT_IMAGE_SETTINGS: ImageConvertSettings = {
   targetHeight: 1080,
   percentage: 100,
   maintainAspectRatio: true,
+  fitMode: "contain",
   transparencyMode: "preserve",
   backgroundColor: "#ffffff",
   icoSizes: [16, 32, 48, 64, 128, 256],
+  rotate: 0,
+  flipH: false,
+  flipV: false,
+  crop: null,
+  targetSizeKb: null,
 };
 
 export const IMAGE_FORMAT_DEFS = [
@@ -178,17 +199,93 @@ function progressiveResample(
   return intermediateCanvas;
 }
 
+type ImageSource = HTMLImageElement | HTMLCanvasElement;
+
+/** Natural pixel size of an image or canvas source. */
+export function getSourceSize(source: ImageSource): { width: number; height: number } {
+  return {
+    width:
+      source instanceof HTMLImageElement
+        ? source.naturalWidth || source.width
+        : source.width,
+    height:
+      source instanceof HTMLImageElement
+        ? source.naturalHeight || source.height
+        : source.height,
+  };
+}
+
+/**
+ * Applies rotation (90° steps) and mirroring. Returns the original element
+ * untouched when no transform is needed.
+ */
+export function applyTransforms(
+  source: ImageSource,
+  settings: Pick<ImageConvertSettings, "rotate" | "flipH" | "flipV">,
+): ImageSource {
+  const rotation = ((Number(settings.rotate) % 360) + 360) % 360;
+  const needsRotate = rotation !== 0;
+  const needsFlip = Boolean(settings.flipH || settings.flipV);
+  if (!needsRotate && !needsFlip) return source;
+
+  const { width, height } = getSourceSize(source);
+  const swap = rotation === 90 || rotation === 270;
+  const canvas = document.createElement("canvas");
+  canvas.width = swap ? height : width;
+  canvas.height = swap ? width : height;
+  const ctx = canvas.getContext("2d")!;
+  ctx.save();
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate((rotation * Math.PI) / 180);
+  ctx.scale(settings.flipH ? -1 : 1, settings.flipV ? -1 : 1);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(source, -width / 2, -height / 2, width, height);
+  ctx.restore();
+  return canvas;
+}
+
+/** Extracts a crop region (clamped to the source bounds). */
+export function applyCrop(source: ImageSource, crop: CropRect): ImageSource {
+  const { width: srcW, height: srcH } = getSourceSize(source);
+  const x = Math.max(0, Math.min(Math.round(crop.x), srcW - 1));
+  const y = Math.max(0, Math.min(Math.round(crop.y), srcH - 1));
+  const w = Math.max(1, Math.min(Math.round(crop.width), srcW - x));
+  const h = Math.max(1, Math.min(Math.round(crop.height), srcH - y));
+  if (w >= srcW && h >= srcH) return source;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  ctx.drawImage(source, x, y, w, h, 0, 0, w, h);
+  return canvas;
+}
+
+/** Generic canvas → Blob encoder with quality control. */
+function canvasToBlob(canvas: HTMLCanvasElement, mime: string, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error(`Failed to encode image as ${mime}`))),
+      mime,
+      Math.max(0.01, Math.min(1, quality)),
+    );
+  });
+}
+
 /**
  * Renders an image with high-quality cubic resampling, background color fills, and alpha preservation.
+ * Supports three fit modes in Exact Pixels mode:
+ *  - contain: fit inside the target box (letterbox, aspect preserved)
+ *  - cover:   fill the target box completely and center-crop the overflow
+ *  - stretch: squash to the exact target box (aspect ignored)
  */
 function renderHighQualityImage(
-  img: HTMLImageElement,
+  img: HTMLImageElement | HTMLCanvasElement,
   targetWidth: number,
   targetHeight: number,
   settings: ImageConvertSettings,
 ): HTMLCanvasElement {
-  const resampled = progressiveResample(img, targetWidth, targetHeight);
-
   const canvas = document.createElement("canvas");
   canvas.width = targetWidth;
   canvas.height = targetHeight;
@@ -206,6 +303,29 @@ function renderHighQualityImage(
     ctx.clearRect(0, 0, targetWidth, targetHeight);
   }
 
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+
+  const isCover =
+    settings.fitMode === "cover" &&
+    settings.resizeMode === "pixels" &&
+    targetWidth > 0 &&
+    targetHeight > 0;
+
+  if (isCover) {
+    // Fill the box: scale so both dimensions cover the target, center-crop the rest
+    const { width: srcW, height: srcH } = getSourceSize(img);
+    const scale = Math.max(targetWidth / srcW, targetHeight / srcH);
+    const drawW = Math.max(targetWidth, Math.round(srcW * scale));
+    const drawH = Math.max(targetHeight, Math.round(srcH * scale));
+    const resampled = progressiveResample(img, drawW, drawH);
+    const sx = Math.max(0, Math.floor((drawW - targetWidth) / 2));
+    const sy = Math.max(0, Math.floor((drawH - targetHeight) / 2));
+    ctx.drawImage(resampled, sx, sy, targetWidth, targetHeight, 0, 0, targetWidth, targetHeight);
+    return canvas;
+  }
+
+  const resampled = progressiveResample(img, targetWidth, targetHeight);
   ctx.drawImage(resampled, 0, 0);
   return canvas;
 }
@@ -236,7 +356,13 @@ export async function convertImage(
   originalFileName: string,
   sourceExt?: string,
 ): Promise<{ blob: Blob; mime: string; ext: string; width: number; height: number; previewUrl: string }> {
-  const { imgElement, width: srcWidth, height: srcHeight } = await loadAndDecodeImage(imageSource, sourceExt);
+  const { imgElement } = await loadAndDecodeImage(imageSource, sourceExt);
+
+  // Transform pipeline: rotate/flip first, then crop. Crop coordinates are
+  // expressed in the rotated/flipped space — matching the crop editor UI.
+  const transformed = applyTransforms(imgElement, settings);
+  const workingSource = settings.crop ? applyCrop(transformed, settings.crop) : transformed;
+  const { width: srcWidth, height: srcHeight } = getSourceSize(workingSource);
 
   const { width, height } = calculateDimensions(srcWidth, srcHeight, settings);
 
@@ -275,7 +401,7 @@ export async function convertImage(
         ctx.fillRect(0, 0, size, size);
       }
 
-      const resampled = progressiveResample(imgElement, fitW, fitH);
+      const resampled = progressiveResample(workingSource, fitW, fitH);
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
       ctx.drawImage(
@@ -305,7 +431,7 @@ export async function convertImage(
 
   // 2. SVG conversion mode (Scalable Vector container with clean vector markup)
   if (settings.format === "svg") {
-    const canvas = renderHighQualityImage(imgElement, width, height, settings);
+    const canvas = renderHighQualityImage(workingSource, width, height, settings);
     const dataUrl = canvas.toDataURL("image/png");
 
     const svgContent = `<?xml version="1.0" encoding="UTF-8"?>
@@ -333,7 +459,7 @@ export async function convertImage(
 
   // 3. GIF conversion mode (GIF89a with balanced dithered gradients)
   if (settings.format === "gif") {
-    const canvas = renderHighQualityImage(imgElement, width, height, settings);
+    const canvas = renderHighQualityImage(workingSource, width, height, settings);
     const ctx = canvas.getContext("2d")!;
     const imageData = ctx.getImageData(0, 0, width, height);
     const gifBlob = encodeGif(imageData);
@@ -350,7 +476,7 @@ export async function convertImage(
 
   // 4. BMP conversion mode (Windows Bitmap 24/32-bit)
   if (settings.format === "bmp") {
-    const canvas = renderHighQualityImage(imgElement, width, height, settings);
+    const canvas = renderHighQualityImage(workingSource, width, height, settings);
     const ctx = canvas.getContext("2d")!;
     const imageData = ctx.getImageData(0, 0, width, height);
     const withAlpha = settings.transparencyMode === "preserve";
@@ -368,7 +494,7 @@ export async function convertImage(
 
   // 5. TIFF conversion mode (Baseline uncompressed TIFF 6.0)
   if (settings.format === "tiff") {
-    const canvas = renderHighQualityImage(imgElement, width, height, settings);
+    const canvas = renderHighQualityImage(workingSource, width, height, settings);
     const ctx = canvas.getContext("2d")!;
     const imageData = ctx.getImageData(0, 0, width, height);
     const withAlpha = settings.transparencyMode === "preserve";
@@ -385,7 +511,7 @@ export async function convertImage(
   }
 
   // 6. Raster formats: PNG, JPG, JPEG, WEBP
-  const canvas = renderHighQualityImage(imgElement, width, height, settings);
+  const canvas = renderHighQualityImage(workingSource, width, height, settings);
   const qualityDecimal = Math.max(0.01, Math.min(1.0, (settings.quality || 92) / 100));
 
   let mime = "image/png";
@@ -399,18 +525,53 @@ export async function convertImage(
     ext = "webp";
   }
 
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (b) => {
-        if (b) resolve(b);
-        else reject(new Error(`Failed to encode image to ${settings.format.toUpperCase()}`));
-      },
-      mime,
-      qualityDecimal,
-    );
-  });
+  let finalCanvas = canvas;
+  let blob = await canvasToBlob(canvas, mime, qualityDecimal);
 
-  const previewUrl = canvas.toDataURL("image/png");
+  // ---- Target file size optimizer (lossy formats only) ----
+  const targetBytes =
+    settings.targetSizeKb != null &&
+    settings.targetSizeKb > 0 &&
+    (settings.format === "jpg" || settings.format === "jpeg" || settings.format === "webp")
+      ? settings.targetSizeKb * 1024
+      : null;
 
-  return { blob, mime, ext, width, height, previewUrl };
+  if (targetBytes != null && blob.size > targetBytes) {
+    // 1) Binary-search the highest quality (≤ the user's chosen quality) that fits
+    let lo = 4;
+    let hi = Math.max(5, Math.min(100, settings.quality || 100));
+    let best: Blob | null = null;
+    while (lo <= hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      const candidate = await canvasToBlob(canvas, mime, mid / 100);
+      if (candidate.size <= targetBytes) {
+        best = candidate;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+
+    // 2) Still too big at minimum quality → progressively downscale (85% steps)
+    if (!best) {
+      let work: HTMLCanvasElement = canvas;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const { width: cw, height: ch } = getSourceSize(work);
+        const nw = Math.max(16, Math.round(cw * 0.85));
+        const nh = Math.max(16, Math.round(ch * 0.85));
+        work = progressiveResample(work, nw, nh);
+        const candidate = await canvasToBlob(work, mime, 0.82);
+        best = candidate; // keep the smallest attempt so far
+        finalCanvas = work;
+        if (candidate.size <= targetBytes) break;
+      }
+    }
+
+    if (best) blob = best;
+  }
+
+  const previewUrl = finalCanvas.toDataURL("image/png");
+  const { width: outW, height: outH } = getSourceSize(finalCanvas);
+
+  return { blob, mime, ext, width: outW, height: outH, previewUrl };
 }

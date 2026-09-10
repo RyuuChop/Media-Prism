@@ -1,5 +1,11 @@
 export type MediaKind = "image" | "audio";
 
+/** PWA install prompt event (not in the standard TS DOM lib). */
+export interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice?: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+}
+
 export interface Asset {
   id: string;
   file: File;
@@ -22,6 +28,15 @@ export interface AudioConvertSettings {
   bitrate: string; // "128", "192", "256", "320"
   sampleRate: "44100" | "48000";
   channels: "2" | "1"; // stereo / mono
+  // Trim (seconds). trimEnd = 0 means "until the end".
+  trimStart: number;
+  trimEnd: number;
+  // Fade lengths in seconds (0 = disabled)
+  fadeIn: number;
+  fadeOut: number;
+  // Loudness
+  normalize: boolean; // peak-normalize to ~98%
+  gainDb: number; // -12 .. +12 dB
 }
 
 export interface ConvertResult {
