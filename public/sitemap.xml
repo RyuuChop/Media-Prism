@@ -2,7 +2,7 @@
 <!-- TODO: replace the URL below with your final site URL. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://mediaprism.netlify.app/</loc>
+    <loc>https://media-prism.netlify.app/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
