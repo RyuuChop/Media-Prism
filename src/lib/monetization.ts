@@ -20,11 +20,13 @@
    ──────────────────────────────────────────────────────────────── */
 
 export const SUPPORT_LINKS = {
-  /** Your Ko-fi page URL, e.g. "https://ko-fi.com/yourname" */
-  kofi: "https://ko-fi.com/ryuuchop", // TODO: replace with your real Ko-fi URL
-  /** Buy Me a Coffee page URL — leave "" to hide the button */
+  /** Ko-fi URL — not set up (PayPal/Stripe payouts don't work in Pakistan). Keep "". */
+  kofi: "",
+  /** Patreon page URL — pays out via Payoneer (works in Pakistan). */
+  patreon: "https://www.patreon.com/Mediaprism",
+  /** Buy Me a Coffee URL — Stripe payouts only (no Pakistan). Keep "". */
   buymeacoffee: "",
-  /** PayPal.me link — leave "" to hide the button */
+  /** PayPal.me link — PayPal doesn't operate in Pakistan. Keep "". */
   paypal: "",
 };
 

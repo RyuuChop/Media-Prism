@@ -58,6 +58,12 @@ export default function SupportModal({
   const [visited, setVisited] = useState<Record<string, boolean>>({});
 
   const tipLinks = [
+    SUPPORT_LINKS.patreon && {
+      id: "patreon",
+      label: "Support on Patreon",
+      url: SUPPORT_LINKS.patreon,
+      cls: "border-[#ff424d]/40 bg-[#ff424d]/10 text-[#ff9ba0] hover:border-[#ff424d]/80 hover:text-white",
+    },
     SUPPORT_LINKS.kofi && {
       id: "kofi",
       label: "Buy me a Ko-fi",

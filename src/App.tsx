@@ -841,16 +841,16 @@ export default function App() {
                 <span className="font-mono text-[11px]">Instagram</span>
               </a>
 
-              {SUPPORT_LINKS.kofi && (
+              {SUPPORT_LINKS.patreon && (
                 <a
-                  href={SUPPORT_LINKS.kofi}
+                  href={SUPPORT_LINKS.patreon}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1 rounded-lg border border-amber-400/25 bg-amber-500/10 px-2 py-0.5 text-slate-300 hover:border-amber-400/60 hover:text-amber-300 transition-colors"
-                  title="Leave a tip — 100% optional"
+                  title="Support MediaPrism on Patreon — 100% optional"
                 >
-                  <span className="text-[11px]">☕</span>
-                  <span className="font-mono text-[11px]">Tip</span>
+                  <span className="text-[11px]">💜</span>
+                  <span className="font-mono text-[11px]">Support</span>
                 </a>
               )}
             </div>
