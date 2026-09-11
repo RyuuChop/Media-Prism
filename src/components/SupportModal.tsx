@@ -64,12 +64,6 @@ export default function SupportModal({
       url: SUPPORT_LINKS.kofi,
       cls: "border-[#ff5e5b]/40 bg-[#ff5e5b]/10 text-[#ffb4b2] hover:border-[#ff5e5b]/80 hover:text-white",
     },
-    SUPPORT_LINKS.patreon && {
-      id: "patreon",
-      label: "Support on Patreon",
-      url: SUPPORT_LINKS.patreon,
-      cls: "border-[#ff424d]/40 bg-[#ff424d]/10 text-[#ff9ba0] hover:border-[#ff424d]/80 hover:text-white",
-    },
     SUPPORT_LINKS.buymeacoffee && {
       id: "bmc",
       label: "Buy Me a Coffee",

@@ -35,7 +35,7 @@ import {
   DEFAULT_AUDIO_SETTINGS,
   getOutputName,
 } from "./lib/presets";
-import { ADS, getPrimaryTipLink } from "./lib/monetization";
+import { ADS, SUPPORT_LINKS } from "./lib/monetization";
 import { extOf, guessMime, isImageExt, uid } from "./lib/format";
 import { convertAudio } from "./lib/audioEngine";
 import { generateDemoAudio, generateDemoImage } from "./lib/demo";
@@ -841,9 +841,9 @@ export default function App() {
                 <span className="font-mono text-[11px]">Instagram</span>
               </a>
 
-              {getPrimaryTipLink() && (
+              {SUPPORT_LINKS.kofi && (
                 <a
-                  href={getPrimaryTipLink()!}
+                  href={SUPPORT_LINKS.kofi}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1 rounded-lg border border-amber-400/25 bg-amber-500/10 px-2 py-0.5 text-slate-300 hover:border-amber-400/60 hover:text-amber-300 transition-colors"
