@@ -4,11 +4,69 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#04050c" />
+    <!-- TODO: after renaming your Netlify site (or adding a custom domain), replace
+         https://mediaprism.netlify.app with your final URL everywhere it appears. -->
     <meta
       name="description"
-      content="MediaPrism — One file in, every format out. High-speed image converter (PNG, JPG, WEBP, ICO, GIF, BMP, SVG, TIFF, JPE) and audio remastering workstation (MP3, WAV, AAC, OGG, M4A, FLAC) running 100% in your browser with zero latency."
+      content="Convert PNG, JPG, WEBP, ICO, GIF, BMP, SVG, TIFF images and MP3, WAV, AAC, OGG, M4A, FLAC audio — free, no upload, no sign-up, no limits. 100% in-browser processing keeps your files private."
     />
-    <title>MediaPrism · Image Studio & Audio Converter</title>
+    <meta
+      name="keywords"
+      content="image converter, audio converter, png to jpg, png to ico, favicon maker, webp converter, mp3 converter, wav to mp3, trim audio online, crop image online, no upload, private, offline, free"
+    />
+    <title>MediaPrism — Free Image & Audio Converter, 100% Private</title>
+    <link rel="canonical" href="https://mediaprism.netlify.app/" />
+
+    <!-- Open Graph (Facebook, WhatsApp, Discord, LinkedIn…) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="MediaPrism" />
+    <meta property="og:url" content="https://mediaprism.netlify.app/" />
+    <meta property="og:title" content="MediaPrism — One file in, every format out" />
+    <meta
+      property="og:description"
+      content="Free in-browser image & audio converter. No uploads — your files never leave your device. No limits, no sign-up, works offline."
+    />
+    <meta property="og:image" content="https://mediaprism.netlify.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="MediaPrism — prism logo with light refracting into a rainbow of formats" />
+
+    <!-- Twitter / X card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MediaPrism — One file in, every format out" />
+    <meta
+      name="twitter:description"
+      content="Free in-browser image & audio converter. No uploads, no limits, works offline."
+    />
+    <meta name="twitter:image" content="https://mediaprism.netlify.app/og-image.png" />
+
+    <!-- Structured data: helps search engines show a rich result -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "MediaPrism",
+        "alternateName": "MediaPrism Studio",
+        "url": "https://mediaprism.netlify.app/",
+        "description": "Free online image and audio converter that runs 100% in your browser. Convert PNG, JPG, WEBP, ICO, GIF, BMP, SVG, TIFF, MP3, WAV, AAC, OGG, M4A and FLAC without uploading files anywhere.",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Any (web browser)",
+        "browserRequirements": "Requires JavaScript",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "featureList": [
+          "Convert images: PNG, JPG, WEBP, ICO, GIF, BMP, SVG, TIFF",
+          "Convert audio: MP3, WAV, AAC, OGG, M4A, FLAC",
+          "Batch conversion with ZIP download",
+          "Crop, rotate and flip images",
+          "Trim audio with fade in / fade out",
+          "Target file size optimizer",
+          "Peak normalization and gain",
+          "100% client-side — files never leave your device",
+          "Installable app (PWA) with offline support"
+        ]
+      }
+    </script>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
