@@ -5,7 +5,9 @@ import {
   X,
   ExternalLink,
   Check,
+  Coffee,
 } from "lucide-react";
+import { SUPPORT_LINKS } from "../lib/monetization";
 
 export const SOCIAL_LINKS = [
   {
@@ -54,6 +56,27 @@ export default function SupportModal({
   onClose: () => void;
 }) {
   const [visited, setVisited] = useState<Record<string, boolean>>({});
+
+  const tipLinks = [
+    SUPPORT_LINKS.kofi && {
+      id: "kofi",
+      label: "Buy me a Ko-fi",
+      url: SUPPORT_LINKS.kofi,
+      cls: "border-[#ff5e5b]/40 bg-[#ff5e5b]/10 text-[#ffb4b2] hover:border-[#ff5e5b]/80 hover:text-white",
+    },
+    SUPPORT_LINKS.buymeacoffee && {
+      id: "bmc",
+      label: "Buy Me a Coffee",
+      url: SUPPORT_LINKS.buymeacoffee,
+      cls: "border-yellow-400/40 bg-yellow-400/10 text-yellow-200 hover:border-yellow-400/80 hover:text-white",
+    },
+    SUPPORT_LINKS.paypal && {
+      id: "paypal",
+      label: "PayPal Tip",
+      url: SUPPORT_LINKS.paypal,
+      cls: "border-sky-400/40 bg-sky-400/10 text-sky-200 hover:border-sky-400/80 hover:text-white",
+    },
+  ].filter(Boolean) as { id: string; label: string; url: string; cls: string }[];
 
   if (!isOpen) return null;
 
@@ -160,6 +183,34 @@ export default function SupportModal({
             );
           })}
         </div>
+
+        {/* Tip Jar (optional support — links live in src/lib/monetization.ts) */}
+        {tipLinks.length > 0 && (
+          <div className="mt-6 rounded-2xl border border-amber-400/20 bg-gradient-to-r from-amber-500/10 via-pink-500/10 to-fuchsia-500/10 p-4">
+            <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-slate-100">
+              <Coffee className="h-4 w-4 text-amber-400" />
+              Enjoying MediaPrism?
+            </div>
+            <p className="mt-1 text-center text-[11px] leading-relaxed text-slate-400">
+              Tips keep the prisms refracting — 100% optional, and the tool stays free forever.
+            </p>
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+              {tipLinks.map((t) => (
+                <a
+                  key={t.id}
+                  href={t.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-bold transition-all hover:scale-[1.03] active:scale-95 ${t.cls}`}
+                >
+                  <Coffee className="h-3.5 w-3.5" />
+                  {t.label}
+                  <ExternalLink className="h-3 w-3 opacity-60" />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Action Button */}
         <div className="mt-6">

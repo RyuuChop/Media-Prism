@@ -12,6 +12,7 @@ import {
 import Background from "./components/Background";
 import Header from "./components/Header";
 import UploadZone from "./components/UploadZone";
+import AdSlot from "./components/AdSlot";
 import FileQueue from "./components/FileQueue";
 import PreviewPanel from "./components/PreviewPanel";
 import AudioSettingsPanel from "./components/AudioSettingsPanel";
@@ -34,6 +35,7 @@ import {
   DEFAULT_AUDIO_SETTINGS,
   getOutputName,
 } from "./lib/presets";
+import { ADS, SUPPORT_LINKS } from "./lib/monetization";
 import { extOf, guessMime, isImageExt, uid } from "./lib/format";
 import { convertAudio } from "./lib/audioEngine";
 import { generateDemoAudio, generateDemoImage } from "./lib/demo";
@@ -730,6 +732,9 @@ export default function App() {
                   onDownloadAll={handleDownloadAll}
                   onReset={handleReset}
                 />
+
+                {/* Ad slot — renders nothing until enabled in src/lib/monetization.ts */}
+                <AdSlot slotId={ADS.slots.sidebar} />
               </div>
             </div>
           ) : (
@@ -835,6 +840,19 @@ export default function App() {
                 </svg>
                 <span className="font-mono text-[11px]">Instagram</span>
               </a>
+
+              {SUPPORT_LINKS.kofi && (
+                <a
+                  href={SUPPORT_LINKS.kofi}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 rounded-lg border border-amber-400/25 bg-amber-500/10 px-2 py-0.5 text-slate-300 hover:border-amber-400/60 hover:text-amber-300 transition-colors"
+                  title="Leave a tip — 100% optional"
+                >
+                  <span className="text-[11px]">☕</span>
+                  <span className="font-mono text-[11px]">Tip</span>
+                </a>
+              )}
             </div>
           </div>
 
