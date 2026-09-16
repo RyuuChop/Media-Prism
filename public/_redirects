@@ -1,0 +1,4 @@
+# SPA fallback — unknown paths render the app.
+# (Static files like /png-to-ico/index.html are served directly by Netlify
+# before this rule applies, so dedicated conversion pages keep their own HTML.)
+/*    /index.html   200

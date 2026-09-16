@@ -63,7 +63,7 @@ export async function generateDemoAudio(): Promise<File> {
   const renderedBuffer = await ctx.startRendering();
   const wavBlob = audioBufferToWavBlob(renderedBuffer, sampleRate, 2);
 
-  return new File([wavBlob], "mediaforge-melody-sample.wav", { type: "audio/wav" });
+  return new File([wavBlob], "mediaprism-melody-sample.wav", { type: "audio/wav" });
 }
 
 /**
@@ -170,7 +170,7 @@ export async function generateDemoImage(): Promise<File> {
   ctx.font = "900 64px Inter, system-ui, sans-serif";
   ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
   ctx.shadowBlur = 20;
-  ctx.fillText("MEDIAFORGE", 0, 175);
+  ctx.fillText("MEDIAPRISM", 0, 175);
 
   ctx.shadowBlur = 0;
   ctx.font = "600 24px Inter, system-ui, sans-serif";
@@ -187,5 +187,5 @@ export async function generateDemoImage(): Promise<File> {
     canvas.toBlob((b) => resolve(b!), "image/png");
   });
 
-  return new File([blob], "mediaforge-badge-sample.png", { type: "image/png" });
+  return new File([blob], "mediaprism-badge-sample.png", { type: "image/png" });
 }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, Music, Trash2, X } from "lucide-react";
+import { Check, CheckCheck, Loader2, Music, Trash2, X } from "lucide-react";
 import type { Asset } from "../types";
 import { cn } from "../utils/cn";
 import { formatBytes, formatDuration } from "../lib/format";
@@ -7,14 +7,20 @@ import { formatBytes, formatDuration } from "../lib/format";
 export default function FileQueue({
   assets,
   selectedId,
+  checkedIds,
   onSelect,
+  onToggleCheck,
+  onToggleCheckAll,
   onRemove,
   onClear,
   busy,
 }: {
   assets: Asset[];
   selectedId: string | null;
+  checkedIds: string[];
   onSelect: (id: string) => void;
+  onToggleCheck: (id: string) => void;
+  onToggleCheckAll: () => void;
   onRemove: (id: string) => void;
   onClear: () => void;
   busy: boolean;
@@ -32,71 +38,117 @@ export default function FileQueue({
     audio: assets.filter((a) => a.kind === "audio").length,
   };
 
+  // A batch can only contain one media kind — figure out which one is active.
+  const checkedKind = checkedIds.length
+    ? (assets.find((a) => a.id === checkedIds[0])?.kind ?? null)
+    : null;
+  const batchKind =
+    checkedKind ??
+    (assets.find((a) => a.id === selectedId)?.kind ?? assets[0]?.kind ?? null);
+  const selectable = batchKind
+    ? assets.filter((a) => a.kind === batchKind)
+    : assets;
+  const allChecked =
+    selectable.length > 0 && checkedIds.length === selectable.length;
+  const someChecked = checkedIds.length > 0;
+  const mixedLibrary = counts.image > 0 && counts.audio > 0;
+
   return (
     <section className="glass p-4 sm:p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <h3 className="text-sm font-semibold text-white">Asset Library</h3>
           <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-slate-400">
             {assets.length}
           </span>
+
+          {someChecked && (
+            <span className="flex items-center gap-1 rounded-full border border-indigo-400/30 bg-indigo-500/15 px-2 py-0.5 text-[11px] font-semibold text-indigo-300">
+              <CheckCheck className="h-3 w-3" />
+              {checkedIds.length} selected
+            </span>
+          )}
         </div>
 
-        {/* Filter Pills if multiple kinds exist */}
-        {(counts.image > 0 || counts.audio > 0) && (
-          <div className="flex rounded-lg border border-white/10 bg-white/5 p-0.5 text-[11px]">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Filter Pills if multiple kinds exist */}
+          {(counts.image > 0 || counts.audio > 0) && (
+            <div className="flex rounded-lg border border-white/10 bg-white/5 p-0.5 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setFilter("all")}
+                className={cn(
+                  "rounded-md px-2.5 py-1 font-semibold transition-colors",
+                  filter === "all" ? "bg-indigo-500 text-white shadow-sm" : "text-slate-400 hover:text-white",
+                )}
+              >
+                All ({counts.all})
+              </button>
+              {counts.image > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setFilter("image")}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 font-semibold transition-colors",
+                    filter === "image" ? "bg-indigo-500 text-white shadow-sm" : "text-slate-400 hover:text-white",
+                  )}
+                >
+                  Images ({counts.image})
+                </button>
+              )}
+              {counts.audio > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setFilter("audio")}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 font-semibold transition-colors",
+                    filter === "audio" ? "bg-indigo-500 text-white shadow-sm" : "text-slate-400 hover:text-white",
+                  )}
+                >
+                  Audio ({counts.audio})
+                </button>
+              )}
+            </div>
+          )}
+
+          {assets.length > 0 && (
             <button
               type="button"
-              onClick={() => setFilter("all")}
+              onClick={onToggleCheckAll}
+              disabled={busy}
               className={cn(
-                "rounded-md px-2.5 py-1 font-semibold transition-colors",
-                filter === "all" ? "bg-indigo-500 text-white shadow-sm" : "text-slate-400 hover:text-white",
+                "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium transition-colors disabled:opacity-40",
+                allChecked
+                  ? "text-indigo-300 hover:bg-indigo-500/10"
+                  : "text-slate-400 hover:bg-white/5 hover:text-white",
               )}
             >
-              All ({counts.all})
+              <CheckCheck className="h-3.5 w-3.5" />
+              {allChecked
+                ? "Deselect all"
+                : `Select all${batchKind ? (batchKind === "image" ? " images" : " audio") : ""}`}
             </button>
-            {counts.image > 0 && (
-              <button
-                type="button"
-                onClick={() => setFilter("image")}
-                className={cn(
-                  "rounded-md px-2.5 py-1 font-semibold transition-colors",
-                  filter === "image" ? "bg-indigo-500 text-white shadow-sm" : "text-slate-400 hover:text-white",
-                )}
-              >
-                Images ({counts.image})
-              </button>
-            )}
-            {counts.audio > 0 && (
-              <button
-                type="button"
-                onClick={() => setFilter("audio")}
-                className={cn(
-                  "rounded-md px-2.5 py-1 font-semibold transition-colors",
-                  filter === "audio" ? "bg-indigo-500 text-white shadow-sm" : "text-slate-400 hover:text-white",
-                )}
-              >
-                Audio ({counts.audio})
-              </button>
-            )}
-          </div>
-        )}
+          )}
 
-        {assets.length > 1 && (
-          <button
-            onClick={onClear}
-            disabled={busy}
-            className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-slate-400 transition-colors hover:bg-white/5 hover:text-rose-300 disabled:opacity-40"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Clear all
-          </button>
-        )}
+          {assets.length > 1 && (
+            <button
+              onClick={onClear}
+              disabled={busy}
+              className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-slate-400 transition-colors hover:bg-white/5 hover:text-rose-300 disabled:opacity-40"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Clear all
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
         {filteredAssets.map((a) => {
           const active = a.id === selectedId;
+          const checked = checkedIds.includes(a.id);
+          const converting = a.status === "converting";
+          const kindLocked = checkedKind !== null && a.kind !== checkedKind;
           return (
             <div
               key={a.id}
@@ -111,9 +163,11 @@ export default function FileQueue({
               }}
               className={cn(
                 "group relative cursor-pointer overflow-hidden rounded-xl border text-left transition-all duration-200",
-                active
-                  ? "border-indigo-400/70 bg-indigo-500/10 ring-2 ring-indigo-400/30"
-                  : "border-white/10 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.06]",
+                checked
+                  ? "border-indigo-400/80 bg-indigo-500/10 ring-2 ring-indigo-400/40"
+                  : active
+                    ? "border-indigo-400/70 bg-indigo-500/10 ring-2 ring-indigo-400/30"
+                    : "border-white/10 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.06]",
               )}
             >
               <div className="relative aspect-video w-full overflow-hidden bg-black/60 flex items-center justify-center">
@@ -143,6 +197,39 @@ export default function FileQueue({
                     : formatDuration(a.duration)}
                 </span>
 
+                {/* Batch selection checkbox — a batch can hold only one media kind */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!busy && !kindLocked) onToggleCheck(a.id);
+                  }}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  disabled={busy || kindLocked}
+                  aria-pressed={checked}
+                  aria-label={checked ? `Unselect ${a.name}` : `Select ${a.name} for batch conversion`}
+                  title={
+                    kindLocked
+                      ? checkedKind === "image"
+                        ? "Batch is images-only — uncheck the images to convert audio instead"
+                        : "Batch is audio-only — uncheck the audio to convert images instead"
+                      : checked
+                        ? "Remove from batch"
+                        : "Add to batch"
+                  }
+                  className={cn(
+                    "absolute bottom-1.5 left-1.5 flex h-6 w-6 items-center justify-center rounded-md border backdrop-blur-sm transition-all",
+                    checked
+                      ? "border-indigo-300 bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white shadow-md shadow-indigo-950/60"
+                      : "border-white/30 bg-black/60 text-transparent hover:border-indigo-300 hover:bg-indigo-500/40",
+                    busy && "cursor-not-allowed opacity-60",
+                    kindLocked &&
+                      "cursor-not-allowed border-white/15 text-transparent opacity-35 hover:border-white/15 hover:bg-black/60",
+                  )}
+                >
+                  <Check className="h-3.5 w-3.5" strokeWidth={3.5} />
+                </button>
+
                 <button
                   type="button"
                   onClick={(e) => {
@@ -156,7 +243,7 @@ export default function FileQueue({
                   <X className="h-3.5 w-3.5" />
                 </button>
 
-                {busy && a.id === selectedId && (
+                {converting && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[2px]">
                     <Loader2 className="h-6 w-6 animate-spin text-indigo-300" />
                   </div>
@@ -174,6 +261,16 @@ export default function FileQueue({
           );
         })}
       </div>
+
+      {someChecked && (
+        <p className="mt-3 text-center text-[10px] text-slate-500">
+          {checkedIds.length} {checkedKind === "image" ? "image" : "audio"}
+          {checkedIds.length > 1 ? "s" : ""} queued — all will convert to the same format
+          {mixedLibrary
+            ? `. A batch can only hold one media type — uncheck these to switch to ${checkedKind === "image" ? "audio" : "images"}.`
+            : " when you hit Convert."}
+        </p>
+      )}
     </section>
   );
 }

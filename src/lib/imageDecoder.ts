@@ -71,7 +71,7 @@ export function decodeTiffToImageData(buffer: ArrayBuffer): ImageData | null {
 
     return imageData;
   } catch (err) {
-    console.warn("[MediaForge] TIFF decode error:", err);
+    console.warn("[MediaPrism] TIFF decode error:", err);
     return null;
   }
 }
@@ -126,7 +126,7 @@ export function decodeBmpToImageData(buffer: ArrayBuffer): ImageData | null {
 
     return imageData;
   } catch (err) {
-    console.warn("[MediaForge] BMP decode error:", err);
+    console.warn("[MediaPrism] BMP decode error:", err);
     return null;
   }
 }

@@ -1,14 +1,13 @@
-import { Heart, ImageIcon, Music, ShieldCheck, Sparkles, Zap } from "lucide-react";
-import { cn } from "../utils/cn";
+import { Download, Heart, ShieldCheck, Zap } from "lucide-react";
 
 export default function Header({
-  activeMode,
-  onModeChange,
   onOpenSupport,
+  canInstall,
+  onInstall,
 }: {
-  activeMode: "all" | "audio" | "image";
-  onModeChange: (mode: "all" | "audio" | "image") => void;
   onOpenSupport?: () => void;
+  canInstall?: boolean;
+  onInstall?: () => void;
 }) {
   return (
     <header className="py-6 border-b border-white/5 space-y-4">
@@ -85,6 +84,18 @@ export default function Header({
             <Zap className="h-3.5 w-3.5" />
             Instant Processing
           </div>
+
+          {canInstall && (
+            <button
+              type="button"
+              onClick={onInstall}
+              title="Install MediaPrism as an app — works offline"
+              className="flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-gradient-to-r from-emerald-500/15 to-cyan-500/15 px-3 py-1 text-[11px] font-semibold text-emerald-300 transition-all hover:border-emerald-400/60 hover:text-white active:scale-95"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Install App
+            </button>
+          )}
         </div>
       </div>
 
@@ -94,67 +105,62 @@ export default function Header({
           <div className="relative">
             <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 opacity-60 blur-lg" />
             <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 shadow-lg shadow-indigo-950/60 ring-1 ring-white/20">
-              <Sparkles className="h-5.5 w-5.5 text-white" />
+              <svg
+                className="h-6 w-6"
+                viewBox="0 0 24 24"
+                fill="none"
+                aria-hidden="true"
+              >
+                {/* Prism */}
+                <path
+                  d="M12 4.5 L19.5 18.5 H4.5 Z"
+                  stroke="white"
+                  strokeWidth="1.7"
+                  strokeLinejoin="round"
+                  fill="rgba(255,255,255,0.12)"
+                />
+                {/* Incoming beam */}
+                <path
+                  d="M1.5 12.5 H7"
+                  stroke="white"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                />
+                {/* Refracted beams */}
+                <path
+                  d="M15.5 12.5 L22.5 9"
+                  stroke="#c7d2fe"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M15.5 12.5 L22.5 12.75"
+                  stroke="white"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M15.5 12.5 L22.5 16.5"
+                  stroke="#f5d0fe"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                />
+              </svg>
             </div>
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg font-extrabold tracking-tight text-white">
-                Media<span className="text-gradient">Forge</span>
+                Media<span className="text-gradient">Prism</span>
               </h1>
               <span className="rounded-full border border-indigo-400/30 bg-indigo-500/15 px-2 py-0.5 text-[10px] font-bold tracking-widest text-indigo-300">
                 STUDIO
               </span>
             </div>
             <p className="text-xs font-medium text-slate-400">
-              High-Speed Image Studio & Audio Converter
+              One File In · Every Format Out · 100% In-Browser
             </p>
           </div>
-        </div>
-
-        {/* Mode Switcher Tabs */}
-        <div className="flex rounded-xl border border-white/10 bg-white/5 p-1">
-          <button
-            type="button"
-            onClick={() => onModeChange("all")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
-              activeMode === "all"
-                ? "bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-md"
-                : "text-slate-400 hover:text-white",
-            )}
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>All Formats</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onModeChange("image")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
-              activeMode === "image"
-                ? "bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-md"
-                : "text-slate-400 hover:text-white",
-            )}
-          >
-            <ImageIcon className="h-3.5 w-3.5" />
-            <span>Image Studio</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onModeChange("audio")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
-              activeMode === "audio"
-                ? "bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-md"
-                : "text-slate-400 hover:text-white",
-            )}
-          >
-            <Music className="h-3.5 w-3.5" />
-            <span>Audio Studio</span>
-          </button>
         </div>
       </div>
     </header>

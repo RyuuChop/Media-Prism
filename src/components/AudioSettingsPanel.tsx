@@ -6,12 +6,14 @@ import {
   Radio,
   RefreshCw,
   Sliders,
+  Zap,
 } from "lucide-react";
 import type { Asset, AudioConvertSettings } from "../types";
 import { cn } from "../utils/cn";
 import {
   AUDIO_BITRATES,
   AUDIO_FORMATS,
+  AUDIO_PRESETS,
   DEFAULT_AUDIO_SETTINGS,
   estimateAudioBytes,
   SAMPLE_RATES,
@@ -54,7 +56,6 @@ export default function AudioSettingsPanel({
   disabled: boolean;
 }) {
   const est = asset ? estimateAudioBytes(asset, settings) : null;
-
   return (
     <section className="glass p-5">
       <div className="mb-5 flex items-center justify-between">
@@ -74,6 +75,26 @@ export default function AudioSettingsPanel({
       </div>
 
       <div className="space-y-6">
+        {/* One-Click Preset Profiles */}
+        <div>
+          <SectionHeader icon={Zap} title="Quick Presets" />
+          <div className="flex flex-wrap gap-1.5">
+            {AUDIO_PRESETS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                title={p.hint}
+                onClick={() => onChange(p.apply)}
+                disabled={disabled}
+                className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-semibold text-slate-300 transition-all hover:border-indigo-400/50 hover:bg-indigo-500/15 hover:text-white active:scale-95 disabled:opacity-40"
+              >
+                <span>{p.emoji}</span>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Output Format selection */}
         <div>
           <SectionHeader icon={Music} title="Target Audio Format" />

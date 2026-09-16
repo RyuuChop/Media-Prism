@@ -1,4 +1,8 @@
 /*
-  Cross-Origin-Opener-Policy: same-origin
-  Cross-Origin-Embedder-Policy: require-corp
-  Access-Control-Allow-Origin: *
+  MediaPrism Netlify headers.
+
+  NOTE: the old Cross-Origin-Embedder-Policy / Opener-Policy headers were
+  removed — they were only needed by the previous ffmpeg.wasm version and
+  they block third-party ad frames (AdSense) from loading.
+*/
+Access-Control-Allow-Origin: *

@@ -10,6 +10,7 @@
 
   --animate-float-slow: float-slow 16s ease-in-out infinite;
   --animate-float-slower: float-slower 20s ease-in-out infinite;
+  --animate-grid-pan: grid-pan 60s linear infinite;
   --animate-fade-up: fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-toast-in: toast-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-shimmer: shimmer 2.4s linear infinite;
@@ -32,6 +33,14 @@
   }
   50% {
     transform: translate3d(-60px, 50px, 0) scale(1.1);
+  }
+}
+@keyframes grid-pan {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 44px 44px;
   }
 }
 @keyframes fade-up {
@@ -117,6 +126,10 @@ body {
     background-image: linear-gradient(rgba(148, 163, 184, 0.055) 1px, transparent 1px),
       linear-gradient(90deg, rgba(148, 163, 184, 0.055) 1px, transparent 1px);
     background-size: 44px 44px;
+  }
+  /* Show upscaled icon frames as honest crisp pixels instead of a blurry smear */
+  .pixelated-preview {
+    image-rendering: pixelated;
   }
 }
 

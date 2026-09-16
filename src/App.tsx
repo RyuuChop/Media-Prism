@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FileText,
   Heart,
@@ -12,17 +12,20 @@ import {
 import Background from "./components/Background";
 import Header from "./components/Header";
 import UploadZone from "./components/UploadZone";
+import AdSlot from "./components/AdSlot";
 import FileQueue from "./components/FileQueue";
 import PreviewPanel from "./components/PreviewPanel";
 import AudioSettingsPanel from "./components/AudioSettingsPanel";
 import ImageSettingsPanel from "./components/ImageSettingsPanel";
 import ActionPanel from "./components/ActionPanel";
 import HowItWorksFeatures from "./components/HowItWorksFeatures";
+import ConversionLinks from "./components/ConversionLinks";
 import SupportModal from "./components/SupportModal";
 import Toasts from "./components/Toasts";
 import type {
   Asset,
   AudioConvertSettings,
+  BeforeInstallPromptEvent,
   ConvertResult,
   JobPhase,
   MediaKind,
@@ -33,6 +36,8 @@ import {
   DEFAULT_AUDIO_SETTINGS,
   getOutputName,
 } from "./lib/presets";
+import { ADS, SUPPORT_LINKS } from "./lib/monetization";
+import { getRouteFromPath } from "./lib/routes";
 import { extOf, guessMime, isImageExt, uid } from "./lib/format";
 import { convertAudio } from "./lib/audioEngine";
 import { generateDemoAudio, generateDemoImage } from "./lib/demo";
@@ -117,9 +122,10 @@ function FeatureCard({
 /* ---------- App component ---------- */
 
 export default function App() {
-  const [activeMode, setActiveMode] = useState<"all" | "audio" | "image">("all");
   const [assets, setAssets] = useState<Asset[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Batch selection — which assets the Convert button will process
+  const [checkedIds, setCheckedIds] = useState<string[]>([]);
 
   // Conversion Settings for Audio & Image
   const [audioSettings, setAudioSettings] = useState<AudioConvertSettings>(DEFAULT_AUDIO_SETTINGS);
@@ -130,7 +136,8 @@ export default function App() {
   const [progress, setProgress] = useState(0);
   const [phaseLabel, setPhaseLabel] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<ConvertResult | null>(null);
+  const [results, setResults] = useState<ConvertResult[]>([]);
+  const [zipping, setZipping] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   // First-Time Support Modal state
@@ -139,16 +146,41 @@ export default function App() {
   // Demo generators state
   const [demoAudioLoading, setDemoAudioLoading] = useState(false);
   const [demoImageLoading, setDemoImageLoading] = useState(false);
+  const [installPrompt, setInstallPrompt] =
+    useState<BeforeInstallPromptEvent | null>(null);
+
+  // Dedicated conversion landing page (e.g. /png-to-ico) — null = homepage
+  const conversionRoute = useMemo(
+    () => getRouteFromPath(window.location.pathname),
+    [],
+  );
+
+  // Preselect the route's target format once on mount
+  useEffect(() => {
+    if (!conversionRoute) return;
+    if (conversionRoute.kind === "image") {
+      setImageSettings((s) => ({ ...s, format: conversionRoute.toFormat as ImageConvertSettings["format"] }));
+    } else {
+      setAudioSettings((s) => ({ ...s, format: conversionRoute.toFormat as AudioConvertSettings["format"] }));
+    }
+    window.scrollTo(0, 0);
+  }, [conversionRoute]);
 
   const selected = assets.find((a) => a.id === selectedId) ?? null;
   const busy = phase === "converting";
 
+  const handleInstall = useCallback(() => {
+    if (!installPrompt) return;
+    installPrompt.prompt().catch(() => {});
+    setInstallPrompt(null);
+  }, [installPrompt]);
+
   // Check and trigger first-time support popup helper
   const triggerFirstTimeSupportPopup = useCallback(() => {
     try {
-      const alreadyShown = localStorage.getItem("mediaforge_support_modal_shown");
+      const alreadyShown = localStorage.getItem("mediaprism_support_modal_shown");
       if (!alreadyShown) {
-        localStorage.setItem("mediaforge_support_modal_shown", "true");
+        localStorage.setItem("mediaprism_support_modal_shown", "true");
         setSupportModalOpen(true);
       }
     } catch {
@@ -172,6 +204,28 @@ export default function App() {
     setToasts((t) => [...t, { id, type, title, message }]);
     window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4600);
   }, []);
+
+  // PWA install prompt capture
+  useEffect(() => {
+    const onBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e as BeforeInstallPromptEvent);
+    };
+    const onInstalled = () => {
+      setInstallPrompt(null);
+      addToast(
+        "success",
+        "MediaPrism installed",
+        "Find it on your home screen or desktop — it works offline too.",
+      );
+    };
+    window.addEventListener("beforeinstallprompt", onBeforeInstall);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBeforeInstall);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, [addToast]);
 
   const dismissToast = useCallback((id: string) => {
     setToasts((t) => t.filter((x) => x.id !== id));
@@ -221,21 +275,9 @@ export default function App() {
         };
       });
 
-      // Auto-adapt mode if appropriate
-      const hasImage = created.some((a) => a.kind === "image");
-      const hasAudio = created.some((a) => a.kind === "audio");
-      if (hasImage && !hasAudio && activeMode === "audio") {
-        setActiveMode("image");
-      } else if (hasAudio && !hasImage && activeMode === "image") {
-        setActiveMode("audio");
-      }
-
       setAssets((prev) => [...prev, ...created]);
       setSelectedId((prev) => prev ?? created[0].id);
-      setResult((r) => {
-        if (r) URL.revokeObjectURL(r.url);
-        return null;
-      });
+      clearResults();
       created.forEach((a) => void probeAsset(a, updateAsset));
       addToast(
         "success",
@@ -243,7 +285,7 @@ export default function App() {
         "Ready to convert — configure your parameters and hit Convert.",
       );
     },
-    [activeMode, addToast, updateAsset],
+    [addToast, updateAsset],
   );
 
   const removeAsset = useCallback(
@@ -257,12 +299,13 @@ export default function App() {
         if (prevId !== id) return prevId;
         return assets.find((a) => a.id !== id)?.id ?? null;
       });
-      setResult((r) => {
-        if (r?.assetId === id) {
-          URL.revokeObjectURL(r.url);
-          return null;
-        }
-        return r;
+      setCheckedIds((prev) => prev.filter((c) => c !== id));
+      setResults((prev) => {
+        const kept = prev.filter((r) => r.assetId !== id);
+        prev
+          .filter((r) => r.assetId === id)
+          .forEach((r) => URL.revokeObjectURL(r.url));
+        return kept;
       });
     },
     [assets],
@@ -272,10 +315,8 @@ export default function App() {
     assets.forEach((a) => URL.revokeObjectURL(a.url));
     setAssets([]);
     setSelectedId(null);
-    setResult((r) => {
-      if (r) URL.revokeObjectURL(r.url);
-      return null;
-    });
+    setCheckedIds([]);
+    clearResults();
   }, [assets]);
 
   const updateAudioSettings = useCallback((patch: Partial<AudioConvertSettings>) => {
@@ -288,33 +329,126 @@ export default function App() {
     setPhase((p) => (p === "done" ? "idle" : p));
   }, []);
 
-  const handleConvert = useCallback(async () => {
-    if (!selected || busy) return;
+  const clearResults = useCallback(() => {
+    setResults((prev) => {
+      prev.forEach((r) => URL.revokeObjectURL(r.url));
+      return [];
+    });
+  }, []);
 
-    // 1. Image Mode Conversion (100% in-browser Canvas & binary encoders)
-    if (selected.kind === "image") {
-      setPhase("converting");
-      setProgress(30);
-      setError(null);
-      setPhaseLabel("Rendering canvas & encoding…");
+  const toggleCheck = useCallback(
+    (id: string) => {
+      const target = assets.find((a) => a.id === id);
+      if (!target) return;
+      setCheckedIds((prev) => {
+        if (prev.includes(id)) return prev.filter((c) => c !== id);
+        // A batch can only hold one media kind — if this check would mix
+        // kinds, start a fresh batch with just this file (defensive; the
+        // UI disables the other kind's checkboxes).
+        const prevKind = prev.length
+          ? assets.find((a) => a.id === prev[0])?.kind
+          : undefined;
+        if (prevKind && prevKind !== target.kind) return [id];
+        return [...prev, id];
+      });
+    },
+    [assets],
+  );
+
+  const toggleCheckAll = useCallback(() => {
+    setCheckedIds((prev) => {
+      const checkedKind = prev.length
+        ? (assets.find((a) => a.id === prev[0])?.kind ?? null)
+        : null;
+      // "Select all" applies to the active batch kind: the checked kind,
+      // else the focused asset's kind, else the first asset's kind.
+      const batchKind =
+        checkedKind ??
+        (assets.find((a) => a.id === selectedId)?.kind ??
+          assets[0]?.kind ??
+          null);
+      if (!batchKind) return prev;
+
+      const selectable = assets.filter((a) => a.kind === batchKind);
+      const allChecked =
+        prev.length === selectable.length &&
+        selectable.every((a) => prev.includes(a.id));
+      return allChecked ? [] : selectable.map((a) => a.id);
+    });
+  }, [assets, selectedId]);
+
+  const handleConvert = useCallback(async () => {
+    if (busy) return;
+
+    // Batch = explicitly checked assets, falling back to the focused asset.
+    let batch =
+      checkedIds.length > 0
+        ? assets.filter((a) => checkedIds.includes(a.id))
+        : selected
+          ? [selected]
+          : [];
+    if (batch.length === 0) return;
+
+    // Safety: a batch must be a single media kind (image XOR audio).
+    const batchKind = batch[0].kind;
+    batch = batch.filter((a) => a.kind === batchKind);
+
+    const total = batch.length;
+
+    // Revoke previous run's object URLs before starting fresh.
+    clearResults();
+    setError(null);
+    setPhase("converting");
+    setProgress(0);
+
+    const usedNames = new Set<string>();
+    const collected: ConvertResult[] = [];
+    const failures: { name: string; message: string }[] = [];
+
+    const markStatus = (id: string, status: Asset["status"]) => {
+      setAssets((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, status } : a)),
+      );
+    };
+
+    for (let i = 0; i < total; i++) {
+      const asset = batch[i];
+      const fileLabel =
+        total > 1 ? `File ${i + 1}/${total} · ${asset.name}` : asset.name;
+
+      markStatus(asset.id, "converting");
 
       try {
-        await new Promise((r) => setTimeout(r, 40)); // Yield for smooth UI animation
-        setProgress(70);
-        setPhaseLabel(`Encoding to ${imageSettings.format.toUpperCase()}…`);
+        let output: ConvertResult;
 
-        const { blob, mime, ext, width, height, previewUrl } = await convertImage(
-          selected.file || selected.url,
-          imageSettings,
-          selected.name,
-          selected.ext,
-        );
+        if (asset.kind === "image") {
+          setPhaseLabel(`${fileLabel} — encoding…`);
+          await new Promise((r) => setTimeout(r, 30)); // Yield for smooth UI
+          setProgress(Math.round(((i + 0.35) / total) * 100));
+          setPhaseLabel(
+            `${fileLabel} — encoding to ${imageSettings.format.toUpperCase()}…`,
+          );
 
-        const name = getOutputName(selected.name, ext);
-        setResult((prev) => {
-          if (prev) URL.revokeObjectURL(prev.url);
-          return {
-            assetId: selected.id,
+          const { blob, mime, ext, width, height, previewUrl } =
+            await convertImage(
+              asset.file || asset.url,
+              imageSettings,
+              asset.name,
+              asset.ext,
+            );
+
+          let name = getOutputName(asset.name, ext);
+          while (usedNames.has(name)) {
+            const dot = name.lastIndexOf(".");
+            name =
+              dot === -1
+                ? `${name} (copy)`
+                : `${name.slice(0, dot)} (${usedNames.size + 1})${name.slice(dot)}`;
+          }
+          usedNames.add(name);
+
+          output = {
+            assetId: asset.id,
             url: URL.createObjectURL(blob),
             previewUrl,
             name,
@@ -323,97 +457,154 @@ export default function App() {
             width,
             height,
           };
-        });
+        } else {
+          setPhaseLabel(`${fileLabel} — decoding audio…`);
+          await new Promise((r) => setTimeout(r, 30));
 
-        setProgress(100);
-        setPhase("done");
-        setPhaseLabel("");
-        addToast(
-          "success",
-          "Image Conversion Complete",
-          `${name} (${width}×${height}px) is ready to download.`,
-        );
+          const { blob, mime, ext, duration } = await convertAudio(
+            asset.file || asset.url,
+            audioSettings,
+            (pct) => setProgress(Math.round(((i + pct / 100) / total) * 100)),
+            (label) =>
+              setPhaseLabel(
+                `${fileLabel} — ${label ?? "processing…"}`,
+              ),
+          );
 
-        // Trigger First-Time Support Modal on first completed conversion
-        triggerFirstTimeSupportPopup();
+          let name = getOutputName(asset.name, ext);
+          while (usedNames.has(name)) {
+            const dot = name.lastIndexOf(".");
+            name =
+              dot === -1
+                ? `${name} (copy)`
+                : `${name.slice(0, dot)} (${usedNames.size + 1})${name.slice(dot)}`;
+          }
+          usedNames.add(name);
+
+          output = {
+            assetId: asset.id,
+            url: URL.createObjectURL(blob),
+            name,
+            size: blob.size,
+            mime,
+            duration,
+          };
+        }
+
+        collected.push(output);
+        markStatus(asset.id, "done");
+        setResults((prev) => [...prev, output]);
+        setProgress(Math.round(((i + 1) / total) * 100));
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        setPhase("error");
-        setError(msg || "Failed to process image.");
-        addToast("error", "Image conversion failed", msg);
+        failures.push({ name: asset.name, message: msg });
+        markStatus(asset.id, "error");
       }
-      return;
     }
 
-    // 2. Audio Mode Conversion (100% in-browser Web Audio API & MediaStream)
-    setPhase("converting");
-    setProgress(20);
-    setError(null);
-    setPhaseLabel("Decoding audio in browser…");
+    setPhaseLabel("");
 
-    try {
-      await new Promise((r) => setTimeout(r, 30));
-
-      const { blob, mime, ext, duration } = await convertAudio(
-        selected.file || selected.url,
-        audioSettings,
-        (pct) => setProgress(pct),
-        (label) => setPhaseLabel(label),
-      );
-
-      const name = getOutputName(selected.name, ext);
-      setResult((prev) => {
-        if (prev) URL.revokeObjectURL(prev.url);
-        return {
-          assetId: selected.id,
-          url: URL.createObjectURL(blob),
-          name,
-          size: blob.size,
-          mime,
-          duration,
-        };
-      });
-
+    if (collected.length > 0) {
       setProgress(100);
       setPhase("done");
-      setPhaseLabel("");
       addToast(
         "success",
-        "Audio Conversion Complete",
-        `${name} (${audioSettings.bitrate} kbps) is ready to download.`,
+        collected.length > 1
+          ? `${collected.length} of ${total} files converted`
+          : "Conversion Complete",
+        collected.length > 1
+          ? "Your batch is ready — download files individually or grab them all as a ZIP."
+          : `${collected[0].name} is ready to download.`,
       );
+      if (failures.length > 0) {
+        addToast(
+          "error",
+          `${failures.length} file${failures.length > 1 ? "s" : ""} failed`,
+          failures.map((f) => f.name).join(", "),
+        );
+      }
+      triggerFirstTimeSupportPopup();
+    } else {
+      setPhase("error");
+      setError(
+        failures[0]?.message || "All conversions failed. Please try again.",
+      );
+      addToast(
+        "error",
+        "Batch conversion failed",
+        failures[0]?.message ?? "No files could be converted.",
+      );
+    }
+  }, [
+    assets,
+    checkedIds,
+    selected,
+    audioSettings,
+    imageSettings,
+    busy,
+    addToast,
+    triggerFirstTimeSupportPopup,
+    clearResults,
+  ]);
 
-      // Trigger First-Time Support Modal on first completed conversion
+  const handleDownload = useCallback(
+    (result: ConvertResult) => {
+      const a = document.createElement("a");
+      a.href = result.url;
+      a.download = result.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      addToast("success", "Download started", result.name);
+
+      // Also trigger Support Modal on first download click if not shown yet
+      triggerFirstTimeSupportPopup();
+    },
+    [addToast, triggerFirstTimeSupportPopup],
+  );
+
+  const handleDownloadAll = useCallback(async () => {
+    if (results.length === 0 || zipping) return;
+    setZipping(true);
+    try {
+      const { createZipBlob } = await import("./lib/zipWriter");
+      const entries = await Promise.all(
+        results.map(async (r) => ({
+          name: r.name,
+          blob: await fetch(r.url).then((res) => res.blob()),
+        })),
+      );
+      const zip = await createZipBlob(entries);
+      const url = URL.createObjectURL(zip);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `mediaprism-batch-${results.length}-files.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Give the browser a moment to start the download before revoking
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      addToast(
+        "success",
+        "ZIP download started",
+        `${results.length} files · ${(zip.size / (1024 * 1024)).toFixed(zip.size > 1024 * 1024 ? 1 : 2)} MB`,
+      );
       triggerFirstTimeSupportPopup();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setPhase("error");
-      setError(msg || "Failed to encode audio.");
-      addToast("error", "Audio conversion failed", msg);
+      addToast("error", "Could not build ZIP", msg);
+    } finally {
+      setZipping(false);
     }
-  }, [selected, audioSettings, imageSettings, busy, addToast, triggerFirstTimeSupportPopup]);
-
-  const handleDownload = useCallback(() => {
-    if (!result) return;
-    const a = document.createElement("a");
-    a.href = result.url;
-    a.download = result.name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    addToast("success", "Download started", result.name);
-
-    // Also trigger Support Modal on first download click if not shown yet
-    triggerFirstTimeSupportPopup();
-  }, [result, addToast, triggerFirstTimeSupportPopup]);
+  }, [results, zipping, addToast, triggerFirstTimeSupportPopup]);
 
   const handleReset = useCallback(() => {
-    setResult((r) => {
-      if (r) URL.revokeObjectURL(r.url);
-      return null;
-    });
+    clearResults();
     setPhase("idle");
-  }, []);
+    setProgress(0);
+    setPhaseLabel("");
+    setError(null);
+  }, [clearResults]);
 
   const handleDemoAudio = useCallback(async () => {
     if (demoAudioLoading || demoImageLoading) return;
@@ -460,9 +651,9 @@ export default function App() {
 
       <div className="relative z-10 mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
         <Header
-          activeMode={activeMode}
-          onModeChange={setActiveMode}
           onOpenSupport={() => setSupportModalOpen(true)}
+          canInstall={installPrompt !== null}
+          onInstall={handleInstall}
         />
 
         <main>
@@ -473,14 +664,30 @@ export default function App() {
               100% In-Browser Image Studio & Audio Converter · Zero Server Lag
             </span>
 
-            <h2 className="mt-5 text-4xl font-extrabold tracking-tight text-white sm:text-5xl leading-tight">
-              Transform your media assets,{" "}
-              <span className="text-gradient">purely in your browser</span>
-            </h2>
+            {conversionRoute ? (
+              <>
+                <h2 className="mt-5 text-4xl font-extrabold tracking-tight text-white sm:text-5xl leading-tight">
+                  {conversionRoute.from} to {conversionRoute.to}{" "}
+                  <span className="text-gradient">Converter</span>
+                </h2>
+                <p className="mx-auto mt-4 max-w-2xl text-sm sm:text-base leading-relaxed text-slate-400">
+                  Convert {conversionRoute.from} to {conversionRoute.to} online for free — no
+                  uploads, no sign-up, no watermarks, no limits. Drop your{" "}
+                  {conversionRoute.from} file below and your files never leave your device.
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="mt-5 text-4xl font-extrabold tracking-tight text-white sm:text-5xl leading-tight">
+                  Transform your media assets,{" "}
+                  <span className="text-gradient">purely in your browser</span>
+                </h2>
 
-            <p className="mx-auto mt-4 max-w-2xl text-sm sm:text-base leading-relaxed text-slate-400">
-              Convert, resize, and remaster images (PNG, JPG, WEBP, ICO, GIF, BMP, SVG, TIFF, JPE) and audio (MP3, WAV, AAC, OGG, M4A, FLAC). Lightning-fast, private, and zero latency.
-            </p>
+                <p className="mx-auto mt-4 max-w-2xl text-sm sm:text-base leading-relaxed text-slate-400">
+                  Convert, resize, and remaster images (PNG, JPG, WEBP, ICO, GIF, BMP, SVG, TIFF, JPE) and audio (MP3, WAV, AAC, OGG, M4A, FLAC). Lightning-fast, private, and zero latency.
+                </p>
+              </>
+            )}
           </div>
 
           {/* Upload Zone */}
@@ -498,11 +705,22 @@ export default function App() {
           {hasAssets ? (
             <div className="animate-fade-up mt-8 grid grid-cols-1 gap-6 lg:grid-cols-12">
               <div className="space-y-6 lg:col-span-7">
-                <PreviewPanel asset={selected} result={result} busy={busy} />
+                <PreviewPanel
+                  asset={selected}
+                  result={results.find((r) => r.assetId === selected?.id) ?? null}
+                  busy={busy}
+                  imageSettings={imageSettings}
+                  onImageChange={updateImageSettings}
+                  audioSettings={audioSettings}
+                  onAudioChange={updateAudioSettings}
+                />
                 <FileQueue
                   assets={assets}
                   selectedId={selectedId}
+                  checkedIds={checkedIds}
                   onSelect={setSelectedId}
+                  onToggleCheck={toggleCheck}
+                  onToggleCheckAll={toggleCheckAll}
                   onRemove={removeAsset}
                   onClear={clearAll}
                   busy={busy}
@@ -529,17 +747,29 @@ export default function App() {
 
                 <ActionPanel
                   asset={selected}
+                  batchFiles={
+                    checkedIds.length > 0
+                      ? assets.filter((a) => checkedIds.includes(a.id))
+                      : selected
+                        ? [selected]
+                        : []
+                  }
                   audioSettings={audioSettings}
                   imageSettings={imageSettings}
                   phase={phase}
                   progress={progress}
                   phaseLabel={phaseLabel}
                   error={error}
-                  result={result}
+                  results={results}
+                  zipping={zipping}
                   onConvert={handleConvert}
                   onDownload={handleDownload}
+                  onDownloadAll={handleDownloadAll}
                   onReset={handleReset}
                 />
+
+                {/* Ad slot — renders nothing until enabled in src/lib/monetization.ts */}
+                <AdSlot slotId={ADS.slots.sidebar} />
               </div>
             </div>
           ) : (
@@ -574,6 +804,9 @@ export default function App() {
 
           {/* 'How It Works & Features' Info Section */}
           <HowItWorksFeatures />
+
+          {/* Internal links to every dedicated conversion page */}
+          <ConversionLinks />
         </main>
 
         {/* Footer with Persistent Social Support Badge */}
@@ -645,11 +878,24 @@ export default function App() {
                 </svg>
                 <span className="font-mono text-[11px]">Instagram</span>
               </a>
+
+              {SUPPORT_LINKS.patreon && (
+                <a
+                  href={SUPPORT_LINKS.patreon}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 rounded-lg border border-amber-400/25 bg-amber-500/10 px-2 py-0.5 text-slate-300 hover:border-amber-400/60 hover:text-amber-300 transition-colors"
+                  title="Support MediaPrism on Patreon — 100% optional"
+                >
+                  <span className="text-[11px]">💜</span>
+                  <span className="font-mono text-[11px]">Support</span>
+                </a>
+              )}
             </div>
           </div>
 
           <div>
-            MediaForge · 100% In-Browser HTML5 Canvas & Web Audio API Processing · Zero Server Uploads
+            MediaPrism · 100% In-Browser HTML5 Canvas & Web Audio API Processing · Zero Server Uploads
           </div>
         </footer>
       </div>

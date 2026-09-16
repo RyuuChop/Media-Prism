@@ -1,0 +1,7 @@
+# MediaPrism — https://media-prism.netlify.app/
+# TODO: replace the URL above and in the Sitemap line below with your final site URL.
+
+User-agent: *
+Allow: /
+
+Sitemap: https://media-prism.netlify.app/sitemap.xml
