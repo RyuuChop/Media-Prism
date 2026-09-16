@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FileText,
   Heart,
@@ -19,6 +19,7 @@ import AudioSettingsPanel from "./components/AudioSettingsPanel";
 import ImageSettingsPanel from "./components/ImageSettingsPanel";
 import ActionPanel from "./components/ActionPanel";
 import HowItWorksFeatures from "./components/HowItWorksFeatures";
+import ConversionLinks from "./components/ConversionLinks";
 import SupportModal from "./components/SupportModal";
 import Toasts from "./components/Toasts";
 import type {
@@ -36,6 +37,7 @@ import {
   getOutputName,
 } from "./lib/presets";
 import { ADS, SUPPORT_LINKS } from "./lib/monetization";
+import { getRouteFromPath } from "./lib/routes";
 import { extOf, guessMime, isImageExt, uid } from "./lib/format";
 import { convertAudio } from "./lib/audioEngine";
 import { generateDemoAudio, generateDemoImage } from "./lib/demo";
@@ -146,6 +148,23 @@ export default function App() {
   const [demoImageLoading, setDemoImageLoading] = useState(false);
   const [installPrompt, setInstallPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
+
+  // Dedicated conversion landing page (e.g. /png-to-ico) — null = homepage
+  const conversionRoute = useMemo(
+    () => getRouteFromPath(window.location.pathname),
+    [],
+  );
+
+  // Preselect the route's target format once on mount
+  useEffect(() => {
+    if (!conversionRoute) return;
+    if (conversionRoute.kind === "image") {
+      setImageSettings((s) => ({ ...s, format: conversionRoute.toFormat as ImageConvertSettings["format"] }));
+    } else {
+      setAudioSettings((s) => ({ ...s, format: conversionRoute.toFormat as AudioConvertSettings["format"] }));
+    }
+    window.scrollTo(0, 0);
+  }, [conversionRoute]);
 
   const selected = assets.find((a) => a.id === selectedId) ?? null;
   const busy = phase === "converting";
@@ -645,14 +664,30 @@ export default function App() {
               100% In-Browser Image Studio & Audio Converter · Zero Server Lag
             </span>
 
-            <h2 className="mt-5 text-4xl font-extrabold tracking-tight text-white sm:text-5xl leading-tight">
-              Transform your media assets,{" "}
-              <span className="text-gradient">purely in your browser</span>
-            </h2>
+            {conversionRoute ? (
+              <>
+                <h2 className="mt-5 text-4xl font-extrabold tracking-tight text-white sm:text-5xl leading-tight">
+                  {conversionRoute.from} to {conversionRoute.to}{" "}
+                  <span className="text-gradient">Converter</span>
+                </h2>
+                <p className="mx-auto mt-4 max-w-2xl text-sm sm:text-base leading-relaxed text-slate-400">
+                  Convert {conversionRoute.from} to {conversionRoute.to} online for free — no
+                  uploads, no sign-up, no watermarks, no limits. Drop your{" "}
+                  {conversionRoute.from} file below and your files never leave your device.
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="mt-5 text-4xl font-extrabold tracking-tight text-white sm:text-5xl leading-tight">
+                  Transform your media assets,{" "}
+                  <span className="text-gradient">purely in your browser</span>
+                </h2>
 
-            <p className="mx-auto mt-4 max-w-2xl text-sm sm:text-base leading-relaxed text-slate-400">
-              Convert, resize, and remaster images (PNG, JPG, WEBP, ICO, GIF, BMP, SVG, TIFF, JPE) and audio (MP3, WAV, AAC, OGG, M4A, FLAC). Lightning-fast, private, and zero latency.
-            </p>
+                <p className="mx-auto mt-4 max-w-2xl text-sm sm:text-base leading-relaxed text-slate-400">
+                  Convert, resize, and remaster images (PNG, JPG, WEBP, ICO, GIF, BMP, SVG, TIFF, JPE) and audio (MP3, WAV, AAC, OGG, M4A, FLAC). Lightning-fast, private, and zero latency.
+                </p>
+              </>
+            )}
           </div>
 
           {/* Upload Zone */}
@@ -769,6 +804,9 @@ export default function App() {
 
           {/* 'How It Works & Features' Info Section */}
           <HowItWorksFeatures />
+
+          {/* Internal links to every dedicated conversion page */}
+          <ConversionLinks />
         </main>
 
         {/* Footer with Persistent Social Support Badge */}

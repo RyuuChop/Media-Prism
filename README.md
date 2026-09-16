@@ -17,6 +17,10 @@ as an app (PWA) and works fully offline.
 - **Audio trimmer** — cut start/end with smooth cosine fade-in/fade-out
 - **Loudness** — peak normalization + manual gain (±12 dB)
 - **PWA** — install on desktop/mobile, works offline via service worker
+- **28 dedicated conversion pages** — `/png-to-ico`, `/wav-to-mp3`, … each with its own
+  title/description/canonical for search engines, generated at build time
+  (`npm run build` runs `scripts/generate-conversion-pages.mjs`); route list lives in
+  `src/lib/routes.ts`
 
 Everything runs locally using HTML5 Canvas, the Web Audio API, and custom binary
 encoders — your files never leave your device.
