@@ -19,7 +19,9 @@
         app stays 100% clean, fast and private.
    ──────────────────────────────────────────────────────────────── */
 
-export const PATREON_URL = import.meta.env.VITE_PATREON_URL || "https://patreon.com/RyuuDen";
+export const SUPPORT_LINKS = {
+  patreon: import.meta.env.VITE_PATREON_URL || "https://patreon.com/RyuuDen",
+};
 
 export const ADS = {
   /** Google AdSense publisher ID, e.g. "ca-pub-1234567890123456".
