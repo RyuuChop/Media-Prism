@@ -19,16 +19,7 @@
         app stays 100% clean, fast and private.
    ──────────────────────────────────────────────────────────────── */
 
-export const SUPPORT_LINKS = {
-  /** Ko-fi URL — not set up (PayPal/Stripe payouts don't work in Pakistan). Keep "". */
-  kofi: "",
-  /** Patreon page URL — pays out via Payoneer (works in Pakistan). */
-  patreon: "https://www.patreon.com/Mediaprism",
-  /** Buy Me a Coffee URL — Stripe payouts only (no Pakistan). Keep "". */
-  buymeacoffee: "",
-  /** PayPal.me link — PayPal doesn't operate in Pakistan. Keep "". */
-  paypal: "",
-};
+export const PATREON_URL = import.meta.env.VITE_PATREON_URL || "https://patreon.com/RyuuDen";
 
 export const ADS = {
   /** Google AdSense publisher ID, e.g. "ca-pub-1234567890123456".
